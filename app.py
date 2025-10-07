@@ -1,8 +1,9 @@
 import streamlit as st
 from docx import Document
 from docx.shared import Pt, Cm, RGBColor, Inches
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_CELL_VERTICAL_ALIGNMENT
 from docx.oxml.shared import OxmlElement, qn
+from docx.oxml.ns import qn as ns_qn
 import io
 import re
 import base64
@@ -95,7 +96,7 @@ st.markdown("""
     .preview-footer {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
+        align-items: flex-end;
         padding: 1rem 2rem;
         background: #f9f9f9;
         border-top: 1px solid #ddd;
@@ -139,7 +140,6 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 def add_green_header_paragraph(paragraph, text, is_bold=True):
-    """Añade fondo verde - con opción de negrita"""
     run = paragraph.add_run(text)
     run.font.name = 'Century Gothic'
     run.font.size = Pt(11)
@@ -168,7 +168,6 @@ def extract_project_info(doc):
     return info
 
 def is_title_level_1(text, style_name):
-    """Detecta títulos principales (con fondo verde)"""
     if style_name == 'Heading 1':
         return True
     if text.isupper() and len(text) < 100 and not re.match(r'^\d+[.-]', text):
@@ -179,20 +178,15 @@ def is_title_level_1(text, style_name):
     return False
 
 def is_title_level_2(text, style_name):
-    """Detecta títulos secundarios (negrita sin fondo)"""
     if style_name in ['Heading 2', 'Heading 3']:
         return True
-    # Numeración tipo "1. ", "1.1 ", "1.1.1 "
     if re.match(r'^\d+(\.\d+)*[.-]\s', text):
         return True
-    # Texto corto que termina en ":"
     if len(text) < 80 and text.endswith(':') and not text.isupper():
         return True
     return False
 
 def is_list_item(text):
-    """Detecta elementos de lista"""
-    # Viñetas, guiones, numeración
     if re.match(r'^[•\-–—]\s', text):
         return True
     if re.match(r'^[a-z]\)|[ivxIVX]+\)|\d+\)', text):
@@ -208,65 +202,78 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
         section.left_margin = Cm(3.0)
         section.right_margin = Cm(3.0)
 
-        # ENCABEZADO - TÍTULO (NEGRITA) Y DIRECCIÓN (SIN NEGRITA)
+        # ENCABEZADO
         header = section.header
         header.is_linked_to_previous = False
         for para in header.paragraphs:
             para.clear()
 
-        # Título con negrita
         header_title = header.paragraphs[0]
         add_green_header_paragraph(header_title, project_title if project_title else "[TÍTULO DEL DOCUMENTO]", is_bold=True)
 
-        # Dirección SIN negrita, espaciado reducido
         header_location = header.add_paragraph()
         add_green_header_paragraph(header_location, project_location if project_location else "[DIRECCIÓN DEL PROYECTO]", is_bold=False)
-        header_location.paragraph_format.space_before = Pt(1)  # Espaciado mínimo
+        header_location.paragraph_format.space_before = Pt(1)
 
-        # PIE - LOGO EN COLUMNA IZQUIERDA CON AMBAS LÍNEAS DE TEXTO
+        # PIE CON TABLA - ALINEACIÓN VERTICAL BOTTOM
         footer = section.footer
         footer.is_linked_to_previous = False
         for para in footer.paragraphs:
             para.clear()
 
-        # Crear contenedor con 2 columnas usando tabulaciones
-        footer_para = footer.paragraphs[0]
+        # Crear tabla 1x2 (1 fila, 2 columnas)
+        footer_table = footer.add_table(rows=1, cols=2)
 
-        # Logo alineado izquierda
+        # Columna izquierda: Logo
+        cell_logo = footer_table.rows[0].cells[0]
+        cell_logo.width = Inches(1.0)
+        cell_logo.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.BOTTOM  # Alinear ABAJO
+
+        logo_para = cell_logo.paragraphs[0]
+        logo_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
         try:
             logo_bytes = base64.b64decode(LOGO_BASE64)
             logo_stream = BytesIO(logo_bytes)
-            run_logo = footer_para.add_run()
+            run_logo = logo_para.add_run()
             run_logo.add_picture(logo_stream, width=Inches(0.5))
         except:
             pass
 
-        # Añadir tabulación para separar logo del texto
-        footer_para.add_run("\t")
+        # Columna derecha: Texto (2 líneas)
+        cell_text = footer_table.rows[0].cells[1]
+        cell_text.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.BOTTOM  # Alinear ABAJO
 
-        # Primera línea de texto (empresa)
-        run_empresa = footer_para.add_run("ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P.")
-        run_empresa.font.name = 'Century Gothic'
-        run_empresa.font.size = Pt(8)
-        run_empresa.font.color.rgb = RGBColor(0, 0, 0)
+        # Línea 1: Empresa
+        text_para1 = cell_text.paragraphs[0]
+        text_para1.text = "ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P."
+        text_para1.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        for run in text_para1.runs:
+            run.font.name = 'Century Gothic'
+            run.font.size = Pt(8)
+            run.font.color.rgb = RGBColor(0, 0, 0)
 
-        # Segunda línea con salto de línea suave
-        footer_para.add_run("\n")
-        footer_para.add_run("\t")  # Tabulación para alinear con primera línea
+        # Línea 2: Contacto
+        text_para2 = cell_text.add_paragraph()
+        text_para2.text = "AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es"
+        text_para2.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        for run in text_para2.runs:
+            run.font.name = 'Century Gothic'
+            run.font.size = Pt(8)
+            run.font.color.rgb = RGBColor(102, 102, 102)
 
-        # Contacto
-        run_contacto = footer_para.add_run("AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es")
-        run_contacto.font.name = 'Century Gothic'
-        run_contacto.font.size = Pt(8)
-        run_contacto.font.color.rgb = RGBColor(102, 102, 102)
+        # Ocultar bordes de la tabla
+        for row in footer_table.rows:
+            for cell in row.cells:
+                tc = cell._element
+                tcPr = tc.get_or_add_tcPr()
+                tcBorders = OxmlElement('w:tcBorders')
+                for border_name in ['top', 'left', 'bottom', 'right']:
+                    border = OxmlElement(f'w:{border_name}')
+                    border.set(qn('w:val'), 'none')
+                    tcBorders.append(border)
+                tcPr.append(tcBorders)
 
-        # Configurar tabulación a 2cm
-        from docx.oxml import parse_xml
-        pPr = footer_para._element.get_or_add_pPr()
-        tabs = parse_xml(r'<w:tabs xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:tab w:val="left" w:pos="1134"/></w:tabs>')
-        pPr.append(tabs)
-
-    # CONTENIDO CON RECONOCIMIENTO INTELIGENTE
+    # CONTENIDO
     if is_text_only:
         for line in input_doc.split('\n'):
             line = line.strip()
@@ -275,12 +282,9 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
 
             new_para = output_doc.add_paragraph()
 
-            # Detectar tipo
             if is_title_level_1(line, ''):
-                # Título principal con fondo verde
                 add_green_header_paragraph(new_para, line, is_bold=True)
             elif is_title_level_2(line, ''):
-                # Título secundario con negrita
                 run = new_para.add_run(line)
                 run.font.name = 'Century Gothic'
                 run.font.size = Pt(11)
@@ -290,7 +294,6 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
                 new_para.paragraph_format.space_before = Pt(12)
                 new_para.paragraph_format.space_after = Pt(6)
             elif is_list_item(line):
-                # Elemento de lista
                 run = new_para.add_run(line)
                 run.font.name = 'Century Gothic'
                 run.font.size = Pt(10)
@@ -298,7 +301,6 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
                 new_para.paragraph_format.left_indent = Cm(1)
                 new_para.paragraph_format.space_after = Pt(3)
             else:
-                # Texto normal
                 run = new_para.add_run(line)
                 run.font.name = 'Century Gothic'
                 run.font.size = Pt(10)
@@ -314,12 +316,9 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
             texto = para.text.strip()
             style_name = para.style.name
 
-            # Detectar tipo con sistema mejorado
             if is_title_level_1(texto, style_name):
-                # Título principal con fondo verde
                 add_green_header_paragraph(new_para, texto, is_bold=True)
             elif is_title_level_2(texto, style_name):
-                # Título secundario con negrita
                 run = new_para.add_run(texto)
                 run.font.name = 'Century Gothic'
                 run.font.size = Pt(11)
@@ -329,7 +328,6 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
                 new_para.paragraph_format.space_before = Pt(12)
                 new_para.paragraph_format.space_after = Pt(6)
             elif is_list_item(texto):
-                # Elemento de lista
                 run = new_para.add_run(texto)
                 run.font.name = 'Century Gothic'
                 run.font.size = Pt(10)
@@ -337,7 +335,6 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
                 new_para.paragraph_format.left_indent = Cm(1)
                 new_para.paragraph_format.space_after = Pt(3)
             else:
-                # Texto normal - preservar formato original
                 for run in para.runs:
                     new_run = new_para.add_run(run.text)
                     new_run.font.name = 'Century Gothic'
@@ -353,7 +350,6 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
                 new_para.paragraph_format.line_spacing = 1.15
                 new_para.paragraph_format.space_after = Pt(6)
 
-        # Copiar tablas
         for table in input_doc.tables:
             new_table = output_doc.add_table(rows=len(table.rows), cols=len(table.columns))
             new_table.style = 'Table Grid'
@@ -410,7 +406,7 @@ with col1:
     st.markdown("### 📤 Subir Documento")
     uploaded_file = st.file_uploader("DOCX o TXT", type=['docx', 'txt'])
 with col2:
-    st.markdown('<div class="info-box"><h4>✅ Características</h4><p>✓ Reconocimiento inteligente de títulos</p><p>✓ Detección de listas</p><p>✓ Formato corporativo AGOIN</p><p>✓ Vista previa en tiempo real</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="info-box"><h4>✅ Características</h4><p>✓ Logo alineado inferior</p><p>✓ Reconocimiento inteligente</p><p>✓ Formato corporativo AGOIN</p><p>✓ Vista previa en tiempo real</p></div>', unsafe_allow_html=True)
 
 if uploaded_file:
     try:
@@ -463,4 +459,4 @@ else:
     st.markdown('<div class="info-box" style="text-align: center; padding: 3rem;"><h3 style="color: #1a5c4d;">👆 Sube un documento</h3><p>El sistema detectará automáticamente títulos, listas y texto</p></div>', unsafe_allow_html=True)
 
 st.markdown("---")
-st.markdown('<div style="text-align: center; color: #666; padding: 2rem;"><p style="font-weight: 600; color: #1a5c4d; font-size: 1.1rem;">AGOIN Formateador v7.0</p><p>Con reconocimiento inteligente de estructura</p><p style="font-size: 0.9rem; color: #999;">© 2025 AGOIN S.L.P.</p></div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align: center; color: #666; padding: 2rem;"><p style="font-weight: 600; color: #1a5c4d; font-size: 1.1rem;">AGOIN Formateador v7.1</p><p>Con alineación vertical perfecta del logo</p><p style="font-size: 0.9rem; color: #999;">© 2025 AGOIN S.L.P.</p></div>', unsafe_allow_html=True)
