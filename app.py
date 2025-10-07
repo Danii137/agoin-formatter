@@ -140,10 +140,10 @@ st.markdown(f"""
 <div class="main-header">
 {logo_html}
 <h1>📄 AGOIN - Formateador Corporativo</h1>
-<p style="color: #2d8b73; font-size: 1.1rem;">Logo con wrapping perfecto</p>
+<p style="color: #2d8b73; font-size: 1.1rem;">Logo en posición absoluta</p>
 <div>
-<span class="feature-badge">✓ Logo correcto</span>
-<span class="feature-badge">✓ Formato AGOIN</span>
+<span class="feature-badge">✓ Logo posición fija</span>
+<span class="feature-badge">✓ Sin interferencias</span>
 <span class="feature-badge">✓ Vista previa</span>
 </div>
 </div>
@@ -218,31 +218,78 @@ def is_list_item(text):
         return True
     return False
 
-def create_footer_simple_inline(section):
-    """PIE SIMPLE - Logo inline + texto (SIN wrapping complicado)"""
+def create_footer_with_absolute_position(section):
+    """PIE CON LOGO EN POSICIÓN ABSOLUTA - Coordenadas exactas de la imagen"""
     footer = section.footer
     footer.is_linked_to_previous = False
     for para in footer.paragraphs:
         para.clear()
 
-    para_empresa = footer.paragraphs[0]
-    run_logo = para_empresa.add_run()
+    # PÁRRAFO 1: Logo con posición absoluta
+    para_logo = footer.paragraphs[0]
+    run_logo = para_logo.add_run()
 
     try:
         logo_bytes = base64.b64decode(LOGO_BASE64)
         logo_stream = BytesIO(logo_bytes)
-        run_logo.add_picture(logo_stream, height=Cm(0.8))
-    except:
+        inline_shape = run_logo.add_picture(logo_stream, height=Cm(0.8))
+
+        # Convertir inline a anchor con posición absoluta
+        inline = inline_shape._inline
+        cx, cy = inline.extent.cx, inline.extent.cy
+
+        # Extraer graphic element
+        graphic_el = inline.graphic._element
+        if hasattr(graphic_el, 'xml'):
+            graphic_xml = graphic_el.xml
+            if isinstance(graphic_xml, bytes):
+                graphic_xml = graphic_xml.decode('utf-8')
+        else:
+            import lxml.etree as ET
+            graphic_xml = ET.tostring(graphic_el, encoding='unicode')
+
+        # Anchor con coordenadas EXACTAS de tu imagen:
+        # Horizontal: -1.02 cm = -360,000 EMUs (1 cm = 360,000 EMUs)
+        # Vertical: 25.5 cm = 9,200,000 EMUs
+        anchor_xml = (
+            '<wp:anchor xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" '
+            'distT="0" distB="0" distL="0" distR="0" '
+            'simplePos="0" relativeHeight="251658240" '
+            'behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">'
+            '<wp:simplePos x="0" y="0"/>'
+            '<wp:positionH relativeFrom="column">'
+            '<wp:posOffset>-360000</wp:posOffset>'
+            '</wp:positionH>'
+            '<wp:positionV relativeFrom="page">'
+            '<wp:posOffset>9200000</wp:posOffset>'
+            '</wp:positionV>'
+            f'<wp:extent cx="{cx}" cy="{cy}"/>'
+            '<wp:effectExtent l="0" t="0" r="0" b="0"/>'
+            '<wp:wrapNone/>'
+            '<wp:docPr id="1" name="Logo AGOIN"/>'
+            '<wp:cNvGraphicFramePr/>'
+            f'{graphic_xml}'
+            '</wp:anchor>'
+        )
+
+        anchor = parse_xml(anchor_xml)
+        inline.getparent().replace(inline, anchor)
+    except Exception as e:
+        # Si falla, texto simple
         run_logo.text = "[LOGO] "
         run_logo.font.name = 'Century Gothic'
         run_logo.font.size = Pt(9)
 
+    # PÁRRAFO 2: Nombre empresa
+    para_empresa = footer.add_paragraph()
+    para_empresa.paragraph_format.space_before = Pt(0)
     run_empresa = para_empresa.add_run("ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P.")
     run_empresa.font.name = 'Century Gothic'
     run_empresa.font.size = Pt(9)
     run_empresa.font.bold = True
     run_empresa.font.color.rgb = RGBColor(0, 0, 0)
 
+    # PÁRRAFO 3: Contacto
     para_contacto = footer.add_paragraph()
     para_contacto.paragraph_format.space_before = Pt(0)
     run_contacto = para_contacto.add_run("AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es")
@@ -266,7 +313,7 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
         header_location = header.add_paragraph()
         add_green_header_paragraph(header_location, project_location if project_location else "[DIRECCIÓN DEL PROYECTO]", is_bold=False)
         header_location.paragraph_format.space_before = Pt(1)
-        create_footer_simple_inline(section)
+        create_footer_with_absolute_position(section)
 
     if is_text_only:
         for line in input_doc.split('\n'):
@@ -393,7 +440,7 @@ def generate_preview_html(doc, title, location):
 
 col_info = st.columns([3, 1])[1]
 with col_info:
-    st.markdown('<div class="info-box"><h4>✅ Formato AGOIN</h4><p>✓ Subir archivo/texto</p><p>✓ Logo inline funcional</p><p>✓ Sin errores</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="info-box"><h4>✅ Logo Posición Absoluta</h4><p>✓ X: -1.02 cm</p><p>✓ Y: 25.5 cm</p><p>✓ Sin interferencias</p></div>', unsafe_allow_html=True)
 
 tab1, tab2 = st.tabs(["📂 Subir Archivo", "📝 Pegar Texto"])
 doc_content = None
@@ -457,4 +504,4 @@ else:
     st.markdown('<div class="info-box" style="text-align: center; padding: 3rem;"><h3 style="color: #1a5c4d;">👆 Elige opción</h3></div>', unsafe_allow_html=True)
 
 st.markdown("---")
-st.markdown('<div style="text-align: center; color: #666; padding: 2rem;"><p style="font-weight: 600; color: #1a5c4d; font-size: 1.1rem;">AGOIN v10.1</p><p>Sin errores • Logo inline</p></div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align: center; color: #666; padding: 2rem;"><p style="font-weight: 600; color: #1a5c4d; font-size: 1.1rem;">AGOIN v11.0</p><p>Logo en posición absoluta • Sin interferencias</p></div>', unsafe_allow_html=True)
