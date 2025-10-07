@@ -3,13 +3,10 @@ from docx import Document
 from docx.shared import Pt, Cm, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.shared import OxmlElement, qn
-from docx2pdf import convert
 import io
 import re
 import base64
 from io import BytesIO
-import tempfile
-import os
 
 st.set_page_config(page_title="AGOIN - Formateador Corporativo", page_icon="🏢", layout="wide", initial_sidebar_state="collapsed")
 
@@ -59,15 +56,61 @@ st.markdown("""
         display: inline-block;
         margin: 0.3rem;
     }
-    .preview-box {
+    .preview-container {
         background: white;
-        border: 2px solid #1a5c4d;
-        border-radius: 10px;
+        border: 3px solid #1a5c4d;
+        border-radius: 15px;
+        padding: 0;
+        margin: 2rem 0;
+        box-shadow: 0 10px 30px rgba(26, 92, 77, 0.2);
+        overflow: hidden;
+    }
+    .preview-header {
+        background: #1a5c4d;
+        color: white;
+        padding: 1rem;
+        text-align: right;
+        font-family: 'Century Gothic', sans-serif;
+        font-weight: bold;
+        font-size: 14px;
+        margin-bottom: 0.2rem;
+    }
+    .preview-content {
         padding: 2rem;
-        margin: 1rem 0;
+        background: white;
         max-height: 400px;
         overflow-y: auto;
+        font-family: 'Century Gothic', sans-serif;
+        line-height: 1.6;
+        text-align: justify;
     }
+    .preview-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: #f9f9f9;
+        border-top: 1px solid #ddd;
+    }
+    .preview-logo {
+        width: 60px;
+        height: 40px;
+        background: #1a5c4d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 10px;
+        font-weight: bold;
+        border-radius: 3px;
+    }
+    .preview-footer-text {
+        text-align: right;
+        font-family: 'Century Gothic', sans-serif;
+        font-size: 11px;
+    }
+    .preview-footer-text .company { font-weight: bold; color: #000; }
+    .preview-footer-text .contact { color: #666; margin-top: 3px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -76,17 +119,16 @@ st.markdown(f"""
 <div class="main-header">
 {logo_html}
 <h1>📄 AGOIN - Formateador Corporativo</h1>
-<p style="color: #2d8b73; font-size: 1.1rem;">Sistema profesional con previsualización</p>
+<p style="color: #2d8b73; font-size: 1.1rem;">Sistema profesional con vista previa en tiempo real</p>
 <div>
-<span class="feature-badge">✓ Vista previa</span>
-<span class="feature-badge">✓ Títulos verdes</span>
-<span class="feature-badge">✓ Logo en pie</span>
+<span class="feature-badge">✓ Vista previa instantánea</span>
+<span class="feature-badge">✓ Formato AGOIN oficial</span>
+<span class="feature-badge">✓ Descarga DOCX</span>
 </div>
 </div>
 """, unsafe_allow_html=True)
 
 def add_green_header_paragraph(paragraph, text):
-    """Añade fondo verde y texto blanco - DERECHA"""
     run = paragraph.add_run(text)
     run.font.name = 'Century Gothic'
     run.font.size = Pt(11)
@@ -123,36 +165,30 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
         section.left_margin = Cm(3.0)
         section.right_margin = Cm(3.0)
 
-        # ENCABEZADO - SOLO TÍTULO Y DIRECCIÓN CON FONDO VERDE
+        # ENCABEZADO - SOLO TÍTULO Y DIRECCIÓN CON VERDE
         header = section.header
         header.is_linked_to_previous = False
         for para in header.paragraphs:
             para.clear()
 
-        # Título con fondo verde - derecha
         header_title = header.paragraphs[0]
         add_green_header_paragraph(header_title, project_title if project_title else "[TÍTULO DEL DOCUMENTO]")
 
-        # Dirección con fondo verde - derecha
         header_location = header.add_paragraph()
         add_green_header_paragraph(header_location, project_location if project_location else "[DIRECCIÓN DEL PROYECTO]")
 
-        # PIE CON LOGO Y TEXTO EN LA MISMA LÍNEA
+        # PIE CON TABLA - LOGO Y TEXTO EN MISMA LÍNEA
         footer = section.footer
         footer.is_linked_to_previous = False
         for para in footer.paragraphs:
             para.clear()
 
-        # Crear tabla para logo izquierda + texto derecha EN LA MISMA LÍNEA
         footer_table = footer.add_table(rows=2, cols=2)
         footer_table.autofit = False
-        footer_table.allow_autofit = False
 
-        # Fila 1: Logo + Nombre empresa
         left_cell_1 = footer_table.rows[0].cells[0]
         right_cell_1 = footer_table.rows[0].cells[1]
 
-        # Logo
         left_cell_1.width = Inches(0.8)
         logo_para = left_cell_1.paragraphs[0]
         logo_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -164,7 +200,6 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
         except:
             pass
 
-        # Texto empresa (derecha)
         text_para_1 = right_cell_1.paragraphs[0]
         text_para_1.text = "ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P."
         text_para_1.alignment = WD_ALIGN_PARAGRAPH.RIGHT
@@ -173,11 +208,9 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
             run.font.size = Pt(8)
             run.font.color.rgb = RGBColor(0, 0, 0)
 
-        # Fila 2: Vacío + Contacto
         left_cell_2 = footer_table.rows[1].cells[0]
         right_cell_2 = footer_table.rows[1].cells[1]
 
-        # Contacto (derecha)
         text_para_2 = right_cell_2.paragraphs[0]
         text_para_2.text = "AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es"
         text_para_2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
@@ -186,7 +219,6 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
             run.font.size = Pt(8)
             run.font.color.rgb = RGBColor(102, 102, 102)
 
-        # Ocultar bordes de tabla
         for row in footer_table.rows:
             for cell in row.cells:
                 tc = cell._element
@@ -266,43 +298,38 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
     return output_doc
 
 def generate_preview_html(doc, title, location):
-    """Genera vista previa HTML del documento"""
-    preview = f"""
-    <div class="preview-box">
-        <div style="background: #1a5c4d; color: white; padding: 0.5rem 1rem; text-align: right; font-weight: bold; margin-bottom: 0.2rem;">
-            {title}
-        </div>
-        <div style="background: #1a5c4d; color: white; padding: 0.5rem 1rem; text-align: right; margin-bottom: 1rem;">
-            {location}
-        </div>
-        <div style="padding: 1rem; background: #f9f9f9;">
-            <p style="font-family: 'Century Gothic', sans-serif; text-align: justify; line-height: 1.6;">
-                <strong>Vista previa del contenido...</strong><br><br>
-    """
-
+    preview_content = ""
     if hasattr(doc, 'paragraphs'):
-        for i, para in enumerate(doc.paragraphs[:5]):
-            if para.text.strip():
-                preview += f"{para.text[:200]}...<br><br>"
-                if i >= 4:
-                    break
+        count = 0
+        for para in doc.paragraphs:
+            if para.text.strip() and count < 8:
+                text = para.text.strip()
+                if len(text) > 300:
+                    text = text[:300] + "..."
+                if text.isupper() and len(text) < 100:
+                    preview_content += f'<p style="background: #1a5c4d; color: white; padding: 0.5rem; text-align: right; font-weight: bold; margin: 1rem 0;">{text}</p>'
+                elif re.match(r'^\d+[.-]', text):
+                    preview_content += f'<p style="font-weight: bold; margin: 0.8rem 0;">{text}</p>'
+                else:
+                    preview_content += f'<p style="margin: 0.5rem 0;">{text}</p>'
+                count += 1
 
-    preview += """
-            </p>
+    return f"""
+    <div class="preview-container">
+        <div class="preview-header">{title}</div>
+        <div class="preview-header">{location}</div>
+        <div class="preview-content">
+            {preview_content if preview_content else '<p style="color: #999; text-align: center; padding: 2rem;">El contenido aparecerá aquí...</p>'}
         </div>
-        <hr style="border: 1px solid #ddd; margin: 1rem 0;">
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: #f5f5f5;">
-            <div style="width: 60px; height: 40px; background: #1a5c4d; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">
-                LOGO
-            </div>
-            <div style="text-align: right; font-family: 'Century Gothic', sans-serif; font-size: 12px;">
-                <div style="font-weight: bold;">ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P.</div>
-                <div style="color: #666;">AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300</div>
+        <div class="preview-footer">
+            <div class="preview-logo">LOGO</div>
+            <div class="preview-footer-text">
+                <div class="company">ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P.</div>
+                <div class="contact">AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es</div>
             </div>
         </div>
     </div>
     """
-    return preview
 
 # INTERFAZ
 col1, col2 = st.columns([2, 1])
@@ -310,43 +337,58 @@ with col1:
     st.markdown("### 📤 Subir Documento")
     uploaded_file = st.file_uploader("DOCX o TXT", type=['docx', 'txt'])
 with col2:
-    st.markdown('<div class="info-box"><h4>✅ Formato AGOIN</h4><p>✓ Vista previa incluida</p><p>✓ Título y dirección verdes</p><p>✓ Logo en pie (misma línea)</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="info-box"><h4>✅ Características</h4><p>✓ Vista previa en tiempo real</p><p>✓ Título y dirección verdes</p><p>✓ Logo alineado en pie</p><p>✓ Descarga en Word</p></div>', unsafe_allow_html=True)
 
 if uploaded_file:
     try:
         ext = uploaded_file.name.split('.')[-1].lower()
         doc = uploaded_file.read().decode('utf-8', errors='ignore') if ext == 'txt' else Document(uploaded_file)
         is_text = ext == 'txt'
-        st.success("✅ Documento cargado")
+        st.success("✅ Documento cargado correctamente")
         info = extract_project_info(doc)
 
+        st.markdown("### 📝 Información del Documento")
         col_a, col_b = st.columns(2)
         with col_a:
-            project_title = st.text_input("📌 Título", value=info['title'])
+            project_title = st.text_input("📌 Título", value=info['title'], help="Aparecerá con fondo verde en encabezado")
         with col_b:
-            project_location = st.text_area("📍 Dirección", value=info['location'], height=80)
+            project_location = st.text_area("📍 Dirección", value=info['location'], height=80, help="Aparecerá con fondo verde en encabezado")
 
-        # VISTA PREVIA
-        if project_title and project_location:
-            st.markdown("### 👁️ Vista Previa del Formato")
-            preview_html = generate_preview_html(doc, project_title, project_location)
+        # VISTA PREVIA EN TIEMPO REAL
+        if project_title or project_location:
+            st.markdown("### 👁️ Vista Previa del Documento")
+            st.markdown("*Así quedará tu documento formateado con el estilo AGOIN:*")
+            preview_html = generate_preview_html(doc, project_title or "[TÍTULO]", project_location or "[DIRECCIÓN]")
             st.markdown(preview_html, unsafe_allow_html=True)
 
-        if st.button("✨ Convertir y Descargar", use_container_width=True):
-            with st.spinner("🔄 Aplicando formato..."):
+        st.markdown("### 📥 Descargar Documento")
+        if st.button("✨ Generar y Descargar Documento WORD", use_container_width=True, type="primary"):
+            with st.spinner("🔄 Aplicando formato corporativo AGOIN..."):
                 try:
                     output_doc = apply_agoin_format_final(doc, project_title, project_location, is_text)
                     buffer = io.BytesIO()
                     output_doc.save(buffer)
                     buffer.seek(0)
-                    st.success("✅ ¡Documento formateado!")
-                    st.download_button("📥 Descargar Documento AGOIN", buffer, f"AGOIN_{uploaded_file.name.rsplit('.', 1)[0]}.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+                    st.success("✅ ¡Documento formateado exitosamente!")
+
+                    col_down1, col_down2 = st.columns(2)
+                    with col_down1:
+                        st.download_button(
+                            label="📄 Descargar WORD (.docx)",
+                            data=buffer,
+                            file_name=f"AGOIN_{uploaded_file.name.rsplit('.', 1)[0]}.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            use_container_width=True
+                        )
+                    with col_down2:
+                        st.info("💡 Abre el archivo en Word y guárdalo como PDF si lo necesitas")
+
                 except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
+                    st.error(f"❌ Error al procesar: {str(e)}")
     except Exception as e:
-        st.error(f"❌ Error: {str(e)}")
+        st.error(f"❌ Error al cargar: {str(e)}")
 else:
-    st.markdown('<div class="info-box" style="text-align: center; padding: 3rem;"><h3 style="color: #1a5c4d;">👆 Sube un documento DOCX o TXT</h3><p>Verás una vista previa antes de descargar</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="info-box" style="text-align: center; padding: 3rem;"><h3 style="color: #1a5c4d;">👆 Sube un documento para comenzar</h3><p>Verás una vista previa en tiempo real del formato AGOIN antes de descargar</p></div>', unsafe_allow_html=True)
 
 st.markdown("---")
-st.markdown('<div style="text-align: center; color: #666; padding: 2rem;"><p style="font-weight: 600; color: #1a5c4d;">AGOIN Formateador v6.0</p><p>© 2025 AGOIN S.L.P.</p></div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align: center; color: #666; padding: 2rem;"><p style="font-weight: 600; color: #1a5c4d; font-size: 1.1rem;">AGOIN Formateador v6.0</p><p>Arquitectura y Gestión de Operaciones Inmobiliarias S.L.P.</p><p style="font-size: 0.9rem; color: #999;">© 2025 - Sistema profesional de formato corporativo</p></div>', unsafe_allow_html=True)
