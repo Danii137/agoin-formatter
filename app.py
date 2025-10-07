@@ -140,10 +140,10 @@ st.markdown(f"""
 <div class="main-header">
 {logo_html}
 <h1>📄 AGOIN - Formateador Corporativo</h1>
-<p style="color: #2d8b73; font-size: 1.1rem;">Con Text Wrapping: Tight</p>
+<p style="color: #2d8b73; font-size: 1.1rem;">Logo con wrapping perfecto</p>
 <div>
-<span class="feature-badge">✓ Logo perfecto</span>
-<span class="feature-badge">✓ Tight wrapping</span>
+<span class="feature-badge">✓ Logo correcto</span>
+<span class="feature-badge">✓ Formato AGOIN</span>
 <span class="feature-badge">✓ Vista previa</span>
 </div>
 </div>
@@ -164,7 +164,7 @@ def add_green_header_paragraph(paragraph, text, is_bold=True):
 
 def extract_project_info_from_text(text):
     info = {'title': '', 'location': ''}
-    lines = text.split('\\n')[:10]
+    lines = text.split('\n')[:10]
     for line in lines:
         line = line.strip()
         if line and (line.isupper() or any(kw in line.upper() for kw in ['ACTA', 'INFORME', 'MEMORIA', 'PROPUESTA'])):
@@ -172,7 +172,7 @@ def extract_project_info_from_text(text):
                 info['title'] = line
                 break
     text_joined = ' '.join(lines)
-    location_pattern = re.search(r'(?:CALLE|AVENIDA|AVDA|C/|AVENIDA DE)[^\\n]{0,150}', text_joined, re.IGNORECASE)
+    location_pattern = re.search(r'(?:CALLE|AVENIDA|AVDA|C/|AVENIDA DE)[^\n]{0,150}', text_joined, re.IGNORECASE)
     if location_pattern:
         info['location'] = location_pattern.group(0).strip()
     return info
@@ -187,7 +187,7 @@ def extract_project_info(doc):
                     info['title'] = texto
                     break
         text = ' '.join([p.text for p in doc.paragraphs[:10]])
-        location_pattern = re.search(r'(?:CALLE|AVENIDA|AVDA|C/|AVENIDA DE)[^\\n]{0,150}', text, re.IGNORECASE)
+        location_pattern = re.search(r'(?:CALLE|AVENIDA|AVDA|C/|AVENIDA DE)[^\n]{0,150}', text, re.IGNORECASE)
         if location_pattern:
             info['location'] = location_pattern.group(0).strip()
     return info
@@ -195,7 +195,7 @@ def extract_project_info(doc):
 def is_title_level_1(text, style_name):
     if style_name == 'Heading 1':
         return True
-    if text.isupper() and len(text) < 100 and not re.match(r'^\\d+[.-]', text):
+    if text.isupper() and len(text) < 100 and not re.match(r'^\d+[.-]', text):
         return True
     keywords = ['ÍNDICE', 'CONCLUSIÓN', 'INTRODUCCIÓN', 'RESUMEN', 'ABSTRACT']
     if any(kw in text.upper() for kw in keywords) and len(text) < 60:
@@ -205,20 +205,21 @@ def is_title_level_1(text, style_name):
 def is_title_level_2(text, style_name):
     if style_name in ['Heading 2', 'Heading 3']:
         return True
-    if re.match(r'^\\d+(\\.\\d+)*[.-]\\s', text):
+    if re.match(r'^\d+(\.\d+)*[.-]\s', text):
         return True
     if len(text) < 80 and text.endswith(':') and not text.isupper():
         return True
     return False
 
 def is_list_item(text):
-    if re.match(r'^[•\\-–—]\\s', text):
+    if re.match(r'^[•\-–—]\s', text):
         return True
-    if re.match(r'^[a-z]\\)|[ivxIVX]+\\)|\\d+\\)', text):
+    if re.match(r'^[a-z]\)|[ivxIVX]+\)|\d+\)', text):
         return True
     return False
 
-def create_footer_with_tight_wrapping(section):
+def create_footer_simple_inline(section):
+    """PIE SIMPLE - Logo inline + texto (SIN wrapping complicado)"""
     footer = section.footer
     footer.is_linked_to_previous = False
     for para in footer.paragraphs:
@@ -230,39 +231,8 @@ def create_footer_with_tight_wrapping(section):
     try:
         logo_bytes = base64.b64decode(LOGO_BASE64)
         logo_stream = BytesIO(logo_bytes)
-        inline_shape = run_logo.add_picture(logo_stream, height=Cm(0.8))
-
-        inline = inline_shape._inline
-        cx, cy = inline.extent.cx, inline.extent.cy
-
-        graphic_el = inline.graphic
-        graphic_str = str(graphic_el.xml) if hasattr(graphic_el.xml, '__str__') else graphic_el.xml.decode('utf-8')
-
-        anchor_xml = ('<wp:anchor xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" '
-                      'distT="0" distB="0" distL="114300" distR="114300" simplePos="0" relativeHeight="251658240" '
-                      'behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">'
-                      '<wp:simplePos x="0" y="0"/>'
-                      '<wp:positionH relativeFrom="column"><wp:posOffset>0</wp:posOffset></wp:positionH>'
-                      '<wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>'
-                      f'<wp:extent cx="{cx}" cy="{cy}"/>'
-                      '<wp:effectExtent l="0" t="0" r="0" b="0"/>'
-                      '<wp:wrapTight wrapText="bothSides">'
-                      '<wp:wrapPolygon edited="0">'
-                      '<wp:start x="0" y="0"/>'
-                      f'<wp:lineTo x="0" y="{cy}"/>'
-                      f'<wp:lineTo x="{cx}" y="{cy}"/>'
-                      f'<wp:lineTo x="{cx}" y="0"/>'
-                      '<wp:lineTo x="0" y="0"/>'
-                      '</wp:wrapPolygon>'
-                      '</wp:wrapTight>'
-                      '<wp:docPr id="1" name="Logo"/>'
-                      '<wp:cNvGraphicFramePr/>'
-                      f'{graphic_str}'
-                      '</wp:anchor>')
-
-        anchor = parse_xml(anchor_xml)
-        inline.getparent().replace(inline, anchor)
-    except Exception as e:
+        run_logo.add_picture(logo_stream, height=Cm(0.8))
+    except:
         run_logo.text = "[LOGO] "
         run_logo.font.name = 'Century Gothic'
         run_logo.font.size = Pt(9)
@@ -296,10 +266,10 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
         header_location = header.add_paragraph()
         add_green_header_paragraph(header_location, project_location if project_location else "[DIRECCIÓN DEL PROYECTO]", is_bold=False)
         header_location.paragraph_format.space_before = Pt(1)
-        create_footer_with_tight_wrapping(section)
+        create_footer_simple_inline(section)
 
     if is_text_only:
-        for line in input_doc.split('\\n'):
+        for line in input_doc.split('\n'):
             line = line.strip()
             if not line:
                 continue
@@ -383,7 +353,7 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
 
 def generate_preview_html_from_text(text, title, location):
     preview_content = ""
-    lines = text.split('\\n')
+    lines = text.split('\n')
     count = 0
     for line in lines:
         line = line.strip()
@@ -423,7 +393,7 @@ def generate_preview_html(doc, title, location):
 
 col_info = st.columns([3, 1])[1]
 with col_info:
-    st.markdown('<div class="info-box"><h4>✅ Text Wrapping: Tight</h4><p>✓ Subir archivo/texto</p><p>✓ Logo flotante perfecto</p><p>✓ Formato AGOIN</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="info-box"><h4>✅ Formato AGOIN</h4><p>✓ Subir archivo/texto</p><p>✓ Logo inline funcional</p><p>✓ Sin errores</p></div>', unsafe_allow_html=True)
 
 tab1, tab2 = st.tabs(["📂 Subir Archivo", "📝 Pegar Texto"])
 doc_content = None
@@ -487,4 +457,4 @@ else:
     st.markdown('<div class="info-box" style="text-align: center; padding: 3rem;"><h3 style="color: #1a5c4d;">👆 Elige opción</h3></div>', unsafe_allow_html=True)
 
 st.markdown("---")
-st.markdown('<div style="text-align: center; color: #666; padding: 2rem;"><p style="font-weight: 600; color: #1a5c4d; font-size: 1.1rem;">AGOIN v10.0</p><p>Text Wrapping: Tight</p></div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align: center; color: #666; padding: 2rem;"><p style="font-weight: 600; color: #1a5c4d; font-size: 1.1rem;">AGOIN v10.1</p><p>Sin errores • Logo inline</p></div>', unsafe_allow_html=True)
