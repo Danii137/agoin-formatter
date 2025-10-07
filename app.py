@@ -73,7 +73,15 @@ st.markdown("""
         font-family: 'Century Gothic', sans-serif;
         font-weight: bold;
         font-size: 14px;
-        margin-bottom: 0.2rem;
+    }
+    .preview-header-location {
+        background: #1a5c4d;
+        color: white;
+        padding: 0.8rem 1rem;
+        text-align: right;
+        font-family: 'Century Gothic', sans-serif;
+        font-weight: normal;
+        font-size: 13px;
     }
     .preview-content {
         padding: 2rem;
@@ -87,7 +95,7 @@ st.markdown("""
     .preview-footer {
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-start;
         padding: 1rem 2rem;
         background: #f9f9f9;
         border-top: 1px solid #ddd;
@@ -103,11 +111,13 @@ st.markdown("""
         font-size: 10px;
         font-weight: bold;
         border-radius: 3px;
+        flex-shrink: 0;
     }
     .preview-footer-text {
-        text-align: right;
+        text-align: left;
         font-family: 'Century Gothic', sans-serif;
         font-size: 11px;
+        margin-left: 1rem;
     }
     .preview-footer-text .company { font-weight: bold; color: #000; }
     .preview-footer-text .contact { color: #666; margin-top: 3px; }
@@ -121,25 +131,26 @@ st.markdown(f"""
 <h1>📄 AGOIN - Formateador Corporativo</h1>
 <p style="color: #2d8b73; font-size: 1.1rem;">Sistema profesional con vista previa en tiempo real</p>
 <div>
-<span class="feature-badge">✓ Vista previa instantánea</span>
+<span class="feature-badge">✓ Reconocimiento inteligente</span>
 <span class="feature-badge">✓ Formato AGOIN oficial</span>
-<span class="feature-badge">✓ Descarga DOCX</span>
+<span class="feature-badge">✓ Vista previa</span>
 </div>
 </div>
 """, unsafe_allow_html=True)
 
-def add_green_header_paragraph(paragraph, text):
+def add_green_header_paragraph(paragraph, text, is_bold=True):
+    """Añade fondo verde - con opción de negrita"""
     run = paragraph.add_run(text)
     run.font.name = 'Century Gothic'
     run.font.size = Pt(11)
-    run.font.bold = True
+    run.font.bold = is_bold
     run.font.color.rgb = RGBColor(255, 255, 255)
     paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     shading = OxmlElement('w:shd')
     shading.set(qn('w:fill'), '1a5c4d')
     paragraph._element.get_or_add_pPr().append(shading)
-    paragraph.paragraph_format.space_before = Pt(12)
-    paragraph.paragraph_format.space_after = Pt(6)
+    paragraph.paragraph_format.space_before = Pt(0)
+    paragraph.paragraph_format.space_after = Pt(0)
 
 def extract_project_info(doc):
     info = {'title': '', 'location': ''}
@@ -156,6 +167,38 @@ def extract_project_info(doc):
             info['location'] = location_pattern.group(0).strip()
     return info
 
+def is_title_level_1(text, style_name):
+    """Detecta títulos principales (con fondo verde)"""
+    if style_name == 'Heading 1':
+        return True
+    if text.isupper() and len(text) < 100 and not re.match(r'^\d+[.-]', text):
+        return True
+    keywords = ['ÍNDICE', 'CONCLUSIÓN', 'INTRODUCCIÓN', 'RESUMEN', 'ABSTRACT']
+    if any(kw in text.upper() for kw in keywords) and len(text) < 60:
+        return True
+    return False
+
+def is_title_level_2(text, style_name):
+    """Detecta títulos secundarios (negrita sin fondo)"""
+    if style_name in ['Heading 2', 'Heading 3']:
+        return True
+    # Numeración tipo "1. ", "1.1 ", "1.1.1 "
+    if re.match(r'^\d+(\.\d+)*[.-]\s', text):
+        return True
+    # Texto corto que termina en ":"
+    if len(text) < 80 and text.endswith(':') and not text.isupper():
+        return True
+    return False
+
+def is_list_item(text):
+    """Detecta elementos de lista"""
+    # Viñetas, guiones, numeración
+    if re.match(r'^[•\-–—]\s', text):
+        return True
+    if re.match(r'^[a-z]\)|[ivxIVX]+\)|\d+\)', text):
+        return True
+    return False
+
 def apply_agoin_format_final(input_doc, project_title, project_location, is_text_only=False):
     output_doc = Document()
 
@@ -165,106 +208,152 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
         section.left_margin = Cm(3.0)
         section.right_margin = Cm(3.0)
 
-        # ENCABEZADO - SOLO TÍTULO Y DIRECCIÓN CON VERDE
+        # ENCABEZADO - TÍTULO (NEGRITA) Y DIRECCIÓN (SIN NEGRITA)
         header = section.header
         header.is_linked_to_previous = False
         for para in header.paragraphs:
             para.clear()
 
+        # Título con negrita
         header_title = header.paragraphs[0]
-        add_green_header_paragraph(header_title, project_title if project_title else "[TÍTULO DEL DOCUMENTO]")
+        add_green_header_paragraph(header_title, project_title if project_title else "[TÍTULO DEL DOCUMENTO]", is_bold=True)
 
+        # Dirección SIN negrita, espaciado reducido
         header_location = header.add_paragraph()
-        add_green_header_paragraph(header_location, project_location if project_location else "[DIRECCIÓN DEL PROYECTO]")
+        add_green_header_paragraph(header_location, project_location if project_location else "[DIRECCIÓN DEL PROYECTO]", is_bold=False)
+        header_location.paragraph_format.space_before = Pt(1)  # Espaciado mínimo
 
-        # PIE SIMPLE - LOGO A LA IZQUIERDA
+        # PIE - LOGO EN COLUMNA IZQUIERDA CON AMBAS LÍNEAS DE TEXTO
         footer = section.footer
         footer.is_linked_to_previous = False
         for para in footer.paragraphs:
             para.clear()
 
-        # Logo
-        logo_para = footer.paragraphs[0]
-        logo_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        # Crear contenedor con 2 columnas usando tabulaciones
+        footer_para = footer.paragraphs[0]
+
+        # Logo alineado izquierda
         try:
             logo_bytes = base64.b64decode(LOGO_BASE64)
             logo_stream = BytesIO(logo_bytes)
-            run = logo_para.add_run()
-            run.add_picture(logo_stream, width=Inches(0.4))
-            # Añadir espacio después del logo
-            logo_para.add_run("    ")
+            run_logo = footer_para.add_run()
+            run_logo.add_picture(logo_stream, width=Inches(0.5))
         except:
             pass
 
-        # Empresa (mismo párrafo, continúa a la derecha del logo)
-        run_empresa = logo_para.add_run("ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P.")
+        # Añadir tabulación para separar logo del texto
+        footer_para.add_run("\t")
+
+        # Primera línea de texto (empresa)
+        run_empresa = footer_para.add_run("ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P.")
         run_empresa.font.name = 'Century Gothic'
         run_empresa.font.size = Pt(8)
         run_empresa.font.color.rgb = RGBColor(0, 0, 0)
 
-        # Contacto (nuevo párrafo, alineado izquierda)
-        footer_contact = footer.add_paragraph()
-        footer_contact.text = "AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es"
-        footer_contact.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        for run in footer_contact.runs:
-            run.font.name = 'Century Gothic'
-            run.font.size = Pt(8)
-            run.font.color.rgb = RGBColor(102, 102, 102)
+        # Segunda línea con salto de línea suave
+        footer_para.add_run("\n")
+        footer_para.add_run("\t")  # Tabulación para alinear con primera línea
 
-    # CONTENIDO
+        # Contacto
+        run_contacto = footer_para.add_run("AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es")
+        run_contacto.font.name = 'Century Gothic'
+        run_contacto.font.size = Pt(8)
+        run_contacto.font.color.rgb = RGBColor(102, 102, 102)
+
+        # Configurar tabulación a 2cm
+        from docx.oxml import parse_xml
+        pPr = footer_para._element.get_or_add_pPr()
+        tabs = parse_xml(r'<w:tabs xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:tab w:val="left" w:pos="1134"/></w:tabs>')
+        pPr.append(tabs)
+
+    # CONTENIDO CON RECONOCIMIENTO INTELIGENTE
     if is_text_only:
         for line in input_doc.split('\n'):
             line = line.strip()
             if not line:
                 continue
+
             new_para = output_doc.add_paragraph()
-            if line.isupper() and len(line) < 100:
-                add_green_header_paragraph(new_para, line)
-            elif re.match(r'^\d+[.-]', line):
+
+            # Detectar tipo
+            if is_title_level_1(line, ''):
+                # Título principal con fondo verde
+                add_green_header_paragraph(new_para, line, is_bold=True)
+            elif is_title_level_2(line, ''):
+                # Título secundario con negrita
                 run = new_para.add_run(line)
                 run.font.name = 'Century Gothic'
-                run.font.size = Pt(10)
+                run.font.size = Pt(11)
                 run.font.bold = True
+                run.font.color.rgb = RGBColor(0, 0, 0)
                 new_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
                 new_para.paragraph_format.space_before = Pt(12)
                 new_para.paragraph_format.space_after = Pt(6)
+            elif is_list_item(line):
+                # Elemento de lista
+                run = new_para.add_run(line)
+                run.font.name = 'Century Gothic'
+                run.font.size = Pt(10)
+                new_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                new_para.paragraph_format.left_indent = Cm(1)
+                new_para.paragraph_format.space_after = Pt(3)
             else:
+                # Texto normal
                 run = new_para.add_run(line)
                 run.font.name = 'Century Gothic'
                 run.font.size = Pt(10)
                 new_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
                 new_para.paragraph_format.line_spacing = 1.15
+                new_para.paragraph_format.space_after = Pt(6)
     else:
         for para in input_doc.paragraphs:
             if not para.text.strip():
                 continue
+
             new_para = output_doc.add_paragraph()
             texto = para.text.strip()
-            es_verde = (texto.isupper() and len(texto) < 100) or para.style.name == 'Heading 1'
-            es_negrita = re.match(r'^\d+[.-]', texto) or para.style.name.startswith('Heading')
+            style_name = para.style.name
 
-            if es_verde:
-                add_green_header_paragraph(new_para, texto)
-            elif es_negrita:
+            # Detectar tipo con sistema mejorado
+            if is_title_level_1(texto, style_name):
+                # Título principal con fondo verde
+                add_green_header_paragraph(new_para, texto, is_bold=True)
+            elif is_title_level_2(texto, style_name):
+                # Título secundario con negrita
                 run = new_para.add_run(texto)
                 run.font.name = 'Century Gothic'
-                run.font.size = Pt(10)
+                run.font.size = Pt(11)
                 run.font.bold = True
+                run.font.color.rgb = RGBColor(0, 0, 0)
                 new_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
                 new_para.paragraph_format.space_before = Pt(12)
                 new_para.paragraph_format.space_after = Pt(6)
+            elif is_list_item(texto):
+                # Elemento de lista
+                run = new_para.add_run(texto)
+                run.font.name = 'Century Gothic'
+                run.font.size = Pt(10)
+                new_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                new_para.paragraph_format.left_indent = Cm(1)
+                new_para.paragraph_format.space_after = Pt(3)
             else:
+                # Texto normal - preservar formato original
                 for run in para.runs:
                     new_run = new_para.add_run(run.text)
                     new_run.font.name = 'Century Gothic'
                     new_run.font.size = Pt(10)
+                    new_run.font.color.rgb = RGBColor(0, 0, 0)
                     if run.bold:
                         new_run.bold = True
                     if run.italic:
                         new_run.italic = True
+                    if run.underline:
+                        new_run.underline = True
                 new_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
                 new_para.paragraph_format.line_spacing = 1.15
+                new_para.paragraph_format.space_after = Pt(6)
 
+        # Copiar tablas
         for table in input_doc.tables:
             new_table = output_doc.add_table(rows=len(table.rows), cols=len(table.columns))
             new_table.style = 'Table Grid'
@@ -287,10 +376,13 @@ def generate_preview_html(doc, title, location):
                 text = para.text.strip()
                 if len(text) > 300:
                     text = text[:300] + "..."
-                if text.isupper() and len(text) < 100:
+
+                if is_title_level_1(text, para.style.name):
                     preview_content += f'<p style="background: #1a5c4d; color: white; padding: 0.5rem; text-align: right; font-weight: bold; margin: 1rem 0;">{text}</p>'
-                elif re.match(r'^\d+[.-]', text):
-                    preview_content += f'<p style="font-weight: bold; margin: 0.8rem 0;">{text}</p>'
+                elif is_title_level_2(text, para.style.name):
+                    preview_content += f'<p style="font-weight: bold; font-size: 1.05em; margin: 0.8rem 0;">{text}</p>'
+                elif is_list_item(text):
+                    preview_content += f'<p style="margin: 0.3rem 0 0.3rem 1.5rem;">{text}</p>'
                 else:
                     preview_content += f'<p style="margin: 0.5rem 0;">{text}</p>'
                 count += 1
@@ -298,7 +390,7 @@ def generate_preview_html(doc, title, location):
     return f"""
     <div class="preview-container">
         <div class="preview-header">{title}</div>
-        <div class="preview-header">{location}</div>
+        <div class="preview-header-location">{location}</div>
         <div class="preview-content">
             {preview_content if preview_content else '<p style="color: #999; text-align: center; padding: 2rem;">El contenido aparecerá aquí...</p>'}
         </div>
@@ -318,7 +410,7 @@ with col1:
     st.markdown("### 📤 Subir Documento")
     uploaded_file = st.file_uploader("DOCX o TXT", type=['docx', 'txt'])
 with col2:
-    st.markdown('<div class="info-box"><h4>✅ Características</h4><p>✓ Vista previa en tiempo real</p><p>✓ Título y dirección verdes</p><p>✓ Logo en pie de página</p><p>✓ Descarga en Word</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="info-box"><h4>✅ Características</h4><p>✓ Reconocimiento inteligente de títulos</p><p>✓ Detección de listas</p><p>✓ Formato corporativo AGOIN</p><p>✓ Vista previa en tiempo real</p></div>', unsafe_allow_html=True)
 
 if uploaded_file:
     try:
@@ -331,26 +423,25 @@ if uploaded_file:
         st.markdown("### 📝 Información del Documento")
         col_a, col_b = st.columns(2)
         with col_a:
-            project_title = st.text_input("📌 Título", value=info['title'], help="Aparecerá con fondo verde en encabezado")
+            project_title = st.text_input("📌 Título", value=info['title'], help="Aparecerá en NEGRITA con fondo verde")
         with col_b:
-            project_location = st.text_area("📍 Dirección", value=info['location'], height=80, help="Aparecerá con fondo verde en encabezado")
+            project_location = st.text_area("📍 Dirección", value=info['location'], height=80, help="Aparecerá SIN negrita con fondo verde")
 
-        # VISTA PREVIA EN TIEMPO REAL
         if project_title or project_location:
             st.markdown("### 👁️ Vista Previa del Documento")
-            st.markdown("*Así quedará tu documento formateado con el estilo AGOIN:*")
+            st.markdown("*Reconocimiento inteligente de títulos, listas y texto:*")
             preview_html = generate_preview_html(doc, project_title or "[TÍTULO]", project_location or "[DIRECCIÓN]")
             st.markdown(preview_html, unsafe_allow_html=True)
 
         st.markdown("### 📥 Descargar Documento")
-        if st.button("✨ Generar y Descargar Documento WORD", use_container_width=True, type="primary"):
-            with st.spinner("🔄 Aplicando formato corporativo AGOIN..."):
+        if st.button("✨ Generar y Descargar", use_container_width=True, type="primary"):
+            with st.spinner("🔄 Aplicando formato..."):
                 try:
                     output_doc = apply_agoin_format_final(doc, project_title, project_location, is_text)
                     buffer = io.BytesIO()
                     output_doc.save(buffer)
                     buffer.seek(0)
-                    st.success("✅ ¡Documento formateado exitosamente!")
+                    st.success("✅ ¡Documento formateado!")
 
                     col_down1, col_down2 = st.columns(2)
                     with col_down1:
@@ -362,14 +453,14 @@ if uploaded_file:
                             use_container_width=True
                         )
                     with col_down2:
-                        st.info("💡 Abre el archivo en Word y guárdalo como PDF si lo necesitas")
+                        st.info("💡 Abre en Word y guarda como PDF")
 
                 except Exception as e:
-                    st.error(f"❌ Error al procesar: {str(e)}")
+                    st.error(f"❌ Error: {str(e)}")
     except Exception as e:
-        st.error(f"❌ Error al cargar: {str(e)}")
+        st.error(f"❌ Error: {str(e)}")
 else:
-    st.markdown('<div class="info-box" style="text-align: center; padding: 3rem;"><h3 style="color: #1a5c4d;">👆 Sube un documento para comenzar</h3><p>Verás una vista previa en tiempo real del formato AGOIN antes de descargar</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="info-box" style="text-align: center; padding: 3rem;"><h3 style="color: #1a5c4d;">👆 Sube un documento</h3><p>El sistema detectará automáticamente títulos, listas y texto</p></div>', unsafe_allow_html=True)
 
 st.markdown("---")
-st.markdown('<div style="text-align: center; color: #666; padding: 2rem;"><p style="font-weight: 600; color: #1a5c4d; font-size: 1.1rem;">AGOIN Formateador v6.0</p><p>Arquitectura y Gestión de Operaciones Inmobiliarias S.L.P.</p><p style="font-size: 0.9rem; color: #999;">© 2025 - Sistema profesional de formato corporativo</p></div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align: center; color: #666; padding: 2rem;"><p style="font-weight: 600; color: #1a5c4d; font-size: 1.1rem;">AGOIN Formateador v7.0</p><p>Con reconocimiento inteligente de estructura</p><p style="font-size: 0.9rem; color: #999;">© 2025 AGOIN S.L.P.</p></div>', unsafe_allow_html=True)
