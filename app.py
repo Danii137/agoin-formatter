@@ -3,10 +3,13 @@ from docx import Document
 from docx.shared import Pt, Cm, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.shared import OxmlElement, qn
+from docx2pdf import convert
 import io
 import re
 import base64
 from io import BytesIO
+import tempfile
+import os
 
 st.set_page_config(page_title="AGOIN - Formateador Corporativo", page_icon="🏢", layout="wide", initial_sidebar_state="collapsed")
 
@@ -14,9 +17,7 @@ LOGO_BASE64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwA
 
 st.markdown("""
 <style>
-    .stApp {
-        background: linear-gradient(to top left, #1a5c4d 0%, #2d8b73 20%, #ffffff 100%);
-    }
+    .stApp { background: linear-gradient(to top left, #1a5c4d 0%, #2d8b73 20%, #ffffff 100%); }
     .main-header {
         background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(10px);
@@ -28,7 +29,6 @@ st.markdown("""
         margin-bottom: 2rem;
     }
     .main-header h1 { color: #1a5c4d; font-weight: 700; }
-    .main-header p { color: #2d8b73; font-size: 1.1rem; }
     .info-box {
         background: rgba(255, 255, 255, 0.9);
         border-left: 4px solid #1a5c4d;
@@ -44,12 +44,10 @@ st.markdown("""
         font-weight: 600;
         border-radius: 10px;
         padding: 0.75rem 2rem;
-        box-shadow: 0 4px 15px rgba(26, 92, 77, 0.3);
         transition: all 0.3s ease;
     }
     .stButton>button:hover {
         background: linear-gradient(135deg, #2d8b73 0%, #1a5c4d 100%);
-        box-shadow: 0 6px 20px rgba(26, 92, 77, 0.4);
         transform: translateY(-2px);
     }
     .feature-badge {
@@ -61,6 +59,15 @@ st.markdown("""
         display: inline-block;
         margin: 0.3rem;
     }
+    .preview-box {
+        background: white;
+        border: 2px solid #1a5c4d;
+        border-radius: 10px;
+        padding: 2rem;
+        margin: 1rem 0;
+        max-height: 400px;
+        overflow-y: auto;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -69,16 +76,17 @@ st.markdown(f"""
 <div class="main-header">
 {logo_html}
 <h1>📄 AGOIN - Formateador Corporativo</h1>
-<p>Sistema profesional con formato oficial AGOIN</p>
+<p style="color: #2d8b73; font-size: 1.1rem;">Sistema profesional con previsualización</p>
 <div>
+<span class="feature-badge">✓ Vista previa</span>
 <span class="feature-badge">✓ Títulos verdes</span>
-<span class="feature-badge">✓ Alineado derecha</span>
 <span class="feature-badge">✓ Logo en pie</span>
 </div>
 </div>
 """, unsafe_allow_html=True)
 
 def add_green_header_paragraph(paragraph, text):
+    """Añade fondo verde y texto blanco - DERECHA"""
     run = paragraph.add_run(text)
     run.font.name = 'Century Gothic'
     run.font.size = Pt(11)
@@ -115,75 +123,80 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
         section.left_margin = Cm(3.0)
         section.right_margin = Cm(3.0)
 
-        # ENCABEZADO
+        # ENCABEZADO - SOLO TÍTULO Y DIRECCIÓN CON FONDO VERDE
         header = section.header
         header.is_linked_to_previous = False
         for para in header.paragraphs:
             para.clear()
 
+        # Título con fondo verde - derecha
         header_title = header.paragraphs[0]
         add_green_header_paragraph(header_title, project_title if project_title else "[TÍTULO DEL DOCUMENTO]")
 
+        # Dirección con fondo verde - derecha
         header_location = header.add_paragraph()
-        header_location.text = project_location if project_location else "[DIRECCIÓN DEL PROYECTO]"
-        header_location.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        for run in header_location.runs:
-            run.font.name = 'Century Gothic'
-            run.font.size = Pt(9)
-            run.font.color.rgb = RGBColor(0, 0, 0)
+        add_green_header_paragraph(header_location, project_location if project_location else "[DIRECCIÓN DEL PROYECTO]")
 
-        header.add_paragraph()
-
-        header_company = header.add_paragraph()
-        header_company.text = "ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P."
-        header_company.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        for run in header_company.runs:
-            run.font.name = 'Century Gothic'
-            run.font.size = Pt(8)
-            run.font.color.rgb = RGBColor(0, 0, 0)
-
-        header_contact = header.add_paragraph()
-        header_contact.text = "AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es"
-        header_contact.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        for run in header_contact.runs:
-            run.font.name = 'Century Gothic'
-            run.font.size = Pt(8)
-            run.font.color.rgb = RGBColor(51, 51, 51)
-
-        # PIE CON LOGO - MÉTODO SIMPLE Y SIN ERRORES
+        # PIE CON LOGO Y TEXTO EN LA MISMA LÍNEA
         footer = section.footer
         footer.is_linked_to_previous = False
         for para in footer.paragraphs:
             para.clear()
 
-        # Añadir logo en párrafo propio
-        logo_para = footer.paragraphs[0]
+        # Crear tabla para logo izquierda + texto derecha EN LA MISMA LÍNEA
+        footer_table = footer.add_table(rows=2, cols=2)
+        footer_table.autofit = False
+        footer_table.allow_autofit = False
+
+        # Fila 1: Logo + Nombre empresa
+        left_cell_1 = footer_table.rows[0].cells[0]
+        right_cell_1 = footer_table.rows[0].cells[1]
+
+        # Logo
+        left_cell_1.width = Inches(0.8)
+        logo_para = left_cell_1.paragraphs[0]
         logo_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
         try:
             logo_bytes = base64.b64decode(LOGO_BASE64)
             logo_stream = BytesIO(logo_bytes)
             run = logo_para.add_run()
-            run.add_picture(logo_stream, width=Inches(0.45))
+            run.add_picture(logo_stream, width=Inches(0.4))
         except:
             pass
 
-        # Texto empresa
-        footer_text1 = footer.add_paragraph()
-        footer_text1.text = "ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P."
-        footer_text1.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        for run in footer_text1.runs:
+        # Texto empresa (derecha)
+        text_para_1 = right_cell_1.paragraphs[0]
+        text_para_1.text = "ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P."
+        text_para_1.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        for run in text_para_1.runs:
             run.font.name = 'Century Gothic'
             run.font.size = Pt(8)
             run.font.color.rgb = RGBColor(0, 0, 0)
 
-        # Texto contacto
-        footer_text2 = footer.add_paragraph()
-        footer_text2.text = "AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es"
-        footer_text2.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        for run in footer_text2.runs:
+        # Fila 2: Vacío + Contacto
+        left_cell_2 = footer_table.rows[1].cells[0]
+        right_cell_2 = footer_table.rows[1].cells[1]
+
+        # Contacto (derecha)
+        text_para_2 = right_cell_2.paragraphs[0]
+        text_para_2.text = "AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es"
+        text_para_2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        for run in text_para_2.runs:
             run.font.name = 'Century Gothic'
             run.font.size = Pt(8)
             run.font.color.rgb = RGBColor(102, 102, 102)
+
+        # Ocultar bordes de tabla
+        for row in footer_table.rows:
+            for cell in row.cells:
+                tc = cell._element
+                tcPr = tc.get_or_add_tcPr()
+                tcBorders = OxmlElement('w:tcBorders')
+                for border_name in ['top', 'left', 'bottom', 'right']:
+                    border = OxmlElement(f'w:{border_name}')
+                    border.set(qn('w:val'), 'none')
+                    tcBorders.append(border)
+                tcPr.append(tcBorders)
 
     # CONTENIDO
     if is_text_only:
@@ -252,45 +265,88 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
 
     return output_doc
 
+def generate_preview_html(doc, title, location):
+    """Genera vista previa HTML del documento"""
+    preview = f"""
+    <div class="preview-box">
+        <div style="background: #1a5c4d; color: white; padding: 0.5rem 1rem; text-align: right; font-weight: bold; margin-bottom: 0.2rem;">
+            {title}
+        </div>
+        <div style="background: #1a5c4d; color: white; padding: 0.5rem 1rem; text-align: right; margin-bottom: 1rem;">
+            {location}
+        </div>
+        <div style="padding: 1rem; background: #f9f9f9;">
+            <p style="font-family: 'Century Gothic', sans-serif; text-align: justify; line-height: 1.6;">
+                <strong>Vista previa del contenido...</strong><br><br>
+    """
+
+    if hasattr(doc, 'paragraphs'):
+        for i, para in enumerate(doc.paragraphs[:5]):
+            if para.text.strip():
+                preview += f"{para.text[:200]}...<br><br>"
+                if i >= 4:
+                    break
+
+    preview += """
+            </p>
+        </div>
+        <hr style="border: 1px solid #ddd; margin: 1rem 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: #f5f5f5;">
+            <div style="width: 60px; height: 40px; background: #1a5c4d; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">
+                LOGO
+            </div>
+            <div style="text-align: right; font-family: 'Century Gothic', sans-serif; font-size: 12px;">
+                <div style="font-weight: bold;">ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P.</div>
+                <div style="color: #666;">AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300</div>
+            </div>
+        </div>
+    </div>
+    """
+    return preview
+
 # INTERFAZ
 col1, col2 = st.columns([2, 1])
 with col1:
     st.markdown("### 📤 Subir Documento")
     uploaded_file = st.file_uploader("DOCX o TXT", type=['docx', 'txt'])
 with col2:
-    st.markdown('<div class="info-box"><h4>✅ Formato AGOIN</h4><p>✓ Títulos verdes derecha</p><p>✓ Logo pie izquierda</p><p>✓ Century Gothic</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="info-box"><h4>✅ Formato AGOIN</h4><p>✓ Vista previa incluida</p><p>✓ Título y dirección verdes</p><p>✓ Logo en pie (misma línea)</p></div>', unsafe_allow_html=True)
 
 if uploaded_file:
     try:
         ext = uploaded_file.name.split('.')[-1].lower()
         doc = uploaded_file.read().decode('utf-8', errors='ignore') if ext == 'txt' else Document(uploaded_file)
         is_text = ext == 'txt'
-        st.success("✅ Cargado correctamente")
+        st.success("✅ Documento cargado")
         info = extract_project_info(doc)
 
         col_a, col_b = st.columns(2)
         with col_a:
-            project_title = st.text_input("📌 Título del Documento", value=info['title'], help="Aparecerá con fondo verde")
+            project_title = st.text_input("📌 Título", value=info['title'])
         with col_b:
-            project_location = st.text_area("📍 Dirección/Ubicación", value=info['location'], height=80)
+            project_location = st.text_area("📍 Dirección", value=info['location'], height=80)
 
-        if st.button("✨ Convertir al Formato AGOIN Oficial", use_container_width=True):
-            with st.spinner("🔄 Aplicando formato corporativo..."):
+        # VISTA PREVIA
+        if project_title and project_location:
+            st.markdown("### 👁️ Vista Previa del Formato")
+            preview_html = generate_preview_html(doc, project_title, project_location)
+            st.markdown(preview_html, unsafe_allow_html=True)
+
+        if st.button("✨ Convertir y Descargar", use_container_width=True):
+            with st.spinner("🔄 Aplicando formato..."):
                 try:
                     output_doc = apply_agoin_format_final(doc, project_title, project_location, is_text)
                     buffer = io.BytesIO()
                     output_doc.save(buffer)
                     buffer.seek(0)
-                    st.success("✅ ¡Documento formateado exitosamente!")
+                    st.success("✅ ¡Documento formateado!")
                     st.download_button("📥 Descargar Documento AGOIN", buffer, f"AGOIN_{uploaded_file.name.rsplit('.', 1)[0]}.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
                 except Exception as e:
-                    st.error(f"❌ Error al procesar: {str(e)}")
-                    import traceback
-                    st.text(traceback.format_exc())
+                    st.error(f"❌ Error: {str(e)}")
     except Exception as e:
-        st.error(f"❌ Error al cargar: {str(e)}")
+        st.error(f"❌ Error: {str(e)}")
 else:
-    st.markdown('<div class="info-box" style="text-align: center; padding: 3rem;"><h3 style="color: #1a5c4d;">👆 Comienza subiendo un documento DOCX o TXT</h3><p>El sistema aplicará automáticamente el formato corporativo AGOIN</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="info-box" style="text-align: center; padding: 3rem;"><h3 style="color: #1a5c4d;">👆 Sube un documento DOCX o TXT</h3><p>Verás una vista previa antes de descargar</p></div>', unsafe_allow_html=True)
 
 st.markdown("---")
-st.markdown('<div style="text-align: center; color: #666; padding: 2rem;"><p style="font-weight: 600; color: #1a5c4d; font-size: 1.1rem;">AGOIN Formateador Corporativo v5.0</p><p>Arquitectura y Gestión de Operaciones Inmobiliarias S.L.P.</p><p style="font-size: 0.9rem; color: #999;">© 2025 - Sistema profesional de formato corporativo</p></div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align: center; color: #666; padding: 2rem;"><p style="font-weight: 600; color: #1a5c4d;">AGOIN Formateador v6.0</p><p>© 2025 AGOIN S.L.P.</p></div>', unsafe_allow_html=True)
