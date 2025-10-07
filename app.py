@@ -121,9 +121,7 @@ st.markdown("""
     }
     .preview-footer-text .company { font-weight: bold; color: #000; }
     .preview-footer-text .contact { color: #666; margin-top: 3px; }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 1rem;
-    }
+    .stTabs [data-baseweb="tab-list"] { gap: 1rem; }
     .stTabs [data-baseweb="tab"] {
         background-color: rgba(255, 255, 255, 0.7);
         border-radius: 10px 10px 0 0;
@@ -164,22 +162,18 @@ def add_green_header_paragraph(paragraph, text, is_bold=True):
     paragraph.paragraph_format.space_after = Pt(0)
 
 def extract_project_info_from_text(text):
-    """Extrae información del texto plano"""
     info = {'title': '', 'location': ''}
     lines = text.split('\n')[:10]
-
     for line in lines:
         line = line.strip()
         if line and (line.isupper() or any(kw in line.upper() for kw in ['ACTA', 'INFORME', 'MEMORIA', 'PROPUESTA'])):
             if len(line) < 100 and not info['title']:
                 info['title'] = line
                 break
-
     text_joined = ' '.join(lines)
     location_pattern = re.search(r'(?:CALLE|AVENIDA|AVDA|C/|AVENIDA DE)[^\n]{0,150}', text_joined, re.IGNORECASE)
     if location_pattern:
         info['location'] = location_pattern.group(0).strip()
-
     return info
 
 def extract_project_info(doc):
@@ -223,123 +217,48 @@ def is_list_item(text):
         return True
     return False
 
-def create_footer_with_logo(section):
+def create_footer_with_logo_simple(section):
+    """Pie de página SIMPLE - Logo + texto en UNA línea"""
     footer = section.footer
     footer.is_linked_to_previous = False
     for para in footer.paragraphs:
         para.clear()
 
-    tbl = OxmlElement('w:tbl')
-    tblPr = OxmlElement('w:tblPr')
-    tblW = OxmlElement('w:tblW')
-    tblW.set(qn('w:w'), '5000')
-    tblW.set(qn('w:type'), 'pct')
-    tblPr.append(tblW)
+    # Párrafo 1: Logo + Nombre empresa (en UNA línea)
+    footer_para1 = footer.paragraphs[0]
+    footer_para1.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
-    tblBorders = OxmlElement('w:tblBorders')
-    for border in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
-        b = OxmlElement(f'w:{border}')
-        b.set(qn('w:val'), 'none')
-        tblBorders.append(b)
-    tblPr.append(tblBorders)
-    tbl.append(tblPr)
-
-    tblGrid = OxmlElement('w:tblGrid')
-    col1 = OxmlElement('w:gridCol')
-    col1.set(qn('w:w'), '1440')
-    col2 = OxmlElement('w:gridCol')
-    col2.set(qn('w:w'), '7560')
-    tblGrid.append(col1)
-    tblGrid.append(col2)
-    tbl.append(tblGrid)
-
-    tr = OxmlElement('w:tr')
-    tc1 = OxmlElement('w:tc')
-    tcPr1 = OxmlElement('w:tcPr')
-    tcW1 = OxmlElement('w:tcW')
-    tcW1.set(qn('w:w'), '1440')
-    tcW1.set(qn('w:type'), 'dxa')
-    tcPr1.append(tcW1)
-    vAlign1 = OxmlElement('w:vAlign')
-    vAlign1.set(qn('w:val'), 'bottom')
-    tcPr1.append(vAlign1)
-    tc1.append(tcPr1)
-
-    p1 = OxmlElement('w:p')
-    pPr1 = OxmlElement('w:pPr')
-    jc1 = OxmlElement('w:jc')
-    jc1.set(qn('w:val'), 'left')
-    pPr1.append(jc1)
-    p1.append(pPr1)
-
+    # Logo
     try:
-        r1 = OxmlElement('w:r')
-        temp_doc = Document()
-        temp_para = temp_doc.add_paragraph()
         logo_bytes = base64.b64decode(LOGO_BASE64)
         logo_stream = BytesIO(logo_bytes)
-        temp_run = temp_para.add_run()
-        temp_run.add_picture(logo_stream, width=Inches(0.5))
-        drawing = temp_para._element.xpath('.//w:drawing')[0]
-        r1.append(drawing)
-        p1.append(r1)
-    except:
-        pass
+        run_logo = footer_para1.add_run()
+        run_logo.add_picture(logo_stream, width=Cm(1.0))  # 1cm de ancho
+    except Exception as e:
+        # Si falla, añadir placeholder
+        run_logo = footer_para1.add_run("[LOGO] ")
+        run_logo.font.name = 'Century Gothic'
+        run_logo.font.size = Pt(7)
 
-    tc1.append(p1)
-    tr.append(tc1)
+    # Espaciador pequeño
+    footer_para1.add_run("  ")
 
-    tc2 = OxmlElement('w:tc')
-    tcPr2 = OxmlElement('w:tcPr')
-    tcW2 = OxmlElement('w:tcW')
-    tcW2.set(qn('w:w'), '7560')
-    tcW2.set(qn('w:type'), 'dxa')
-    tcPr2.append(tcW2)
-    vAlign2 = OxmlElement('w:vAlign')
-    vAlign2.set(qn('w:val'), 'bottom')
-    tcPr2.append(vAlign2)
-    tc2.append(tcPr2)
+    # Nombre empresa en la MISMA línea (fuente más pequeña: 7pt)
+    run_empresa = footer_para1.add_run("ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P.  ")
+    run_empresa.font.name = 'Century Gothic'
+    run_empresa.font.size = Pt(7)  # Reducido a 7pt para que quepa
+    run_empresa.font.bold = True
+    run_empresa.font.color.rgb = RGBColor(0, 0, 0)
 
-    p2 = OxmlElement('w:p')
-    r2 = OxmlElement('w:r')
-    rPr2 = OxmlElement('w:rPr')
-    rFonts2 = OxmlElement('w:rFonts')
-    rFonts2.set(qn('w:ascii'), 'Century Gothic')
-    rFonts2.set(qn('w:hAnsi'), 'Century Gothic')
-    sz2 = OxmlElement('w:sz')
-    sz2.set(qn('w:val'), '16')
-    rPr2.append(rFonts2)
-    rPr2.append(sz2)
-    r2.append(rPr2)
-    t2 = OxmlElement('w:t')
-    t2.text = "ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P."
-    r2.append(t2)
-    p2.append(r2)
-    tc2.append(p2)
+    # Párrafo 2: Contacto (segunda línea)
+    footer_para2 = footer.add_paragraph()
+    footer_para2.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    footer_para2.paragraph_format.space_before = Pt(0)
 
-    p3 = OxmlElement('w:p')
-    r3 = OxmlElement('w:r')
-    rPr3 = OxmlElement('w:rPr')
-    rFonts3 = OxmlElement('w:rFonts')
-    rFonts3.set(qn('w:ascii'), 'Century Gothic')
-    rFonts3.set(qn('w:hAnsi'), 'Century Gothic')
-    sz3 = OxmlElement('w:sz')
-    sz3.set(qn('w:val'), '16')
-    color3 = OxmlElement('w:color')
-    color3.set(qn('w:val'), '666666')
-    rPr3.append(rFonts3)
-    rPr3.append(sz3)
-    rPr3.append(color3)
-    r3.append(rPr3)
-    t3 = OxmlElement('w:t')
-    t3.text = "AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es"
-    r3.append(t3)
-    p3.append(r3)
-    tc2.append(p3)
-
-    tr.append(tc2)
-    tbl.append(tr)
-    footer.paragraphs[0]._element.addprevious(tbl)
+    run_contacto = footer_para2.add_run("AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es")
+    run_contacto.font.name = 'Century Gothic'
+    run_contacto.font.size = Pt(7)  # También 7pt
+    run_contacto.font.color.rgb = RGBColor(102, 102, 102)
 
 def apply_agoin_format_final(input_doc, project_title, project_location, is_text_only=False):
     output_doc = Document()
@@ -362,7 +281,8 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
         add_green_header_paragraph(header_location, project_location if project_location else "[DIRECCIÓN DEL PROYECTO]", is_bold=False)
         header_location.paragraph_format.space_before = Pt(1)
 
-        create_footer_with_logo(section)
+        # PIE SIMPLE - Logo + texto en línea
+        create_footer_with_logo_simple(section)
 
     if is_text_only:
         for line in input_doc.split('\n'):
@@ -457,13 +377,11 @@ def generate_preview_html_from_text(text, title, location):
     preview_content = ""
     lines = text.split('\n')
     count = 0
-
     for line in lines:
         line = line.strip()
         if line and count < 8:
             if len(line) > 300:
                 line = line[:300] + "..."
-
             if is_title_level_1(line, ''):
                 preview_content += f'<p style="background: #1a5c4d; color: white; padding: 0.5rem; text-align: right; font-weight: bold; margin: 1rem 0;">{line}</p>'
             elif is_title_level_2(line, ''):
@@ -473,7 +391,6 @@ def generate_preview_html_from_text(text, title, location):
             else:
                 preview_content += f'<p style="margin: 0.5rem 0;">{line}</p>'
             count += 1
-
     return f"""
     <div class="preview-container">
         <div class="preview-header">{title}</div>
@@ -500,7 +417,6 @@ def generate_preview_html(doc, title, location):
                 text = para.text.strip()
                 if len(text) > 300:
                     text = text[:300] + "..."
-
                 if is_title_level_1(text, para.style.name):
                     preview_content += f'<p style="background: #1a5c4d; color: white; padding: 0.5rem; text-align: right; font-weight: bold; margin: 1rem 0;">{text}</p>'
                 elif is_title_level_2(text, para.style.name):
@@ -510,7 +426,6 @@ def generate_preview_html(doc, title, location):
                 else:
                     preview_content += f'<p style="margin: 0.5rem 0;">{text}</p>'
                 count += 1
-
     return f"""
     <div class="preview-container">
         <div class="preview-header">{title}</div>
@@ -528,7 +443,6 @@ def generate_preview_html(doc, title, location):
     </div>
     """
 
-# INTERFAZ CON TABS
 col_info = st.columns([3, 1])[1]
 with col_info:
     st.markdown('<div class="info-box"><h4>✅ Dos Formas</h4><p>✓ Subir archivo DOCX/TXT</p><p>✓ Pegar texto directo</p><p>✓ Vista previa instantánea</p></div>', unsafe_allow_html=True)
@@ -542,7 +456,6 @@ source_name = "documento"
 with tab1:
     st.markdown("### 📤 Subir Documento")
     uploaded_file = st.file_uploader("Selecciona archivo DOCX o TXT", type=['docx', 'txt'], key="file_upload")
-
     if uploaded_file:
         try:
             ext = uploaded_file.name.split('.')[-1].lower()
@@ -559,20 +472,13 @@ with tab1:
 
 with tab2:
     st.markdown("### ✍️ Pegar Texto")
-    pasted_text = st.text_area(
-        "Pega aquí tu texto",
-        height=300,
-        placeholder="Pega aquí el texto que quieres formatear...\n\nPuedes incluir títulos en MAYÚSCULAS, listas con viñetas, etc.",
-        key="text_input"
-    )
-
+    pasted_text = st.text_area("Pega aquí tu texto", height=300, placeholder="Pega aquí el texto que quieres formatear...\n\nPuedes incluir títulos en MAYÚSCULAS, listas con viñetas, etc.", key="text_input")
     if pasted_text and len(pasted_text.strip()) > 10:
         doc_content = pasted_text
         is_text_mode = True
         source_name = "texto_pegado"
         st.success(f"✅ Texto cargado ({len(pasted_text)} caracteres)")
 
-# PROCESAMIENTO COMÚN
 if doc_content:
     try:
         if is_text_mode:
@@ -590,12 +496,10 @@ if doc_content:
         if project_title or project_location:
             st.markdown("### 👁️ Vista Previa del Documento")
             st.markdown("*Reconocimiento inteligente de títulos, listas y texto:*")
-
             if is_text_mode:
                 preview_html = generate_preview_html_from_text(doc_content, project_title or "[TÍTULO]", project_location or "[DIRECCIÓN]")
             else:
                 preview_html = generate_preview_html(doc_content, project_title or "[TÍTULO]", project_location or "[DIRECCIÓN]")
-
             st.markdown(preview_html, unsafe_allow_html=True)
 
         st.markdown("### 📥 Descargar Documento")
@@ -607,19 +511,11 @@ if doc_content:
                     output_doc.save(buffer)
                     buffer.seek(0)
                     st.success("✅ ¡Documento formateado correctamente!")
-
                     col_down1, col_down2 = st.columns(2)
                     with col_down1:
-                        st.download_button(
-                            label="📄 Descargar WORD (.docx)",
-                            data=buffer,
-                            file_name=f"AGOIN_{source_name}.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            use_container_width=True
-                        )
+                        st.download_button(label="📄 Descargar WORD (.docx)", data=buffer, file_name=f"AGOIN_{source_name}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
                     with col_down2:
                         st.info("💡 Abre en Word y guarda como PDF")
-
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
     except Exception as e:
@@ -628,4 +524,4 @@ else:
     st.markdown('<div class="info-box" style="text-align: center; padding: 3rem;"><h3 style="color: #1a5c4d;">👆 Elige una opción</h3><p>Sube un archivo o pega texto en las pestañas de arriba</p></div>', unsafe_allow_html=True)
 
 st.markdown("---")
-st.markdown('<div style="text-align: center; color: #666; padding: 2rem;"><p style="font-weight: 600; color: #1a5c4d; font-size: 1.1rem;">AGOIN Formateador v8.0</p><p>Archivo o texto directo • Formato corporativo perfecto</p><p style="font-size: 0.9rem; color: #999;">© 2025 AGOIN S.L.P.</p></div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align: center; color: #666; padding: 2rem;"><p style="font-weight: 600; color: #1a5c4d; font-size: 1.1rem;">AGOIN Formateador v8.1</p><p>Logo funcional • Texto en una línea</p><p style="font-size: 0.9rem; color: #999;">© 2025 AGOIN S.L.P.</p></div>', unsafe_allow_html=True)
