@@ -177,58 +177,39 @@ def apply_agoin_format_final(input_doc, project_title, project_location, is_text
         header_location = header.add_paragraph()
         add_green_header_paragraph(header_location, project_location if project_location else "[DIRECCIÓN DEL PROYECTO]")
 
-        # PIE CON TABLA - LOGO Y TEXTO EN MISMA LÍNEA
+        # PIE SIMPLE - LOGO A LA IZQUIERDA
         footer = section.footer
         footer.is_linked_to_previous = False
         for para in footer.paragraphs:
             para.clear()
 
-        footer_table = footer.add_table(rows=2, cols=2)
-        footer_table.autofit = False
-
-        left_cell_1 = footer_table.rows[0].cells[0]
-        right_cell_1 = footer_table.rows[0].cells[1]
-
-        left_cell_1.width = Inches(0.8)
-        logo_para = left_cell_1.paragraphs[0]
+        # Logo
+        logo_para = footer.paragraphs[0]
         logo_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
         try:
             logo_bytes = base64.b64decode(LOGO_BASE64)
             logo_stream = BytesIO(logo_bytes)
             run = logo_para.add_run()
             run.add_picture(logo_stream, width=Inches(0.4))
+            # Añadir espacio después del logo
+            logo_para.add_run("    ")
         except:
             pass
 
-        text_para_1 = right_cell_1.paragraphs[0]
-        text_para_1.text = "ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P."
-        text_para_1.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        for run in text_para_1.runs:
-            run.font.name = 'Century Gothic'
-            run.font.size = Pt(8)
-            run.font.color.rgb = RGBColor(0, 0, 0)
+        # Empresa (mismo párrafo, continúa a la derecha del logo)
+        run_empresa = logo_para.add_run("ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P.")
+        run_empresa.font.name = 'Century Gothic'
+        run_empresa.font.size = Pt(8)
+        run_empresa.font.color.rgb = RGBColor(0, 0, 0)
 
-        left_cell_2 = footer_table.rows[1].cells[0]
-        right_cell_2 = footer_table.rows[1].cells[1]
-
-        text_para_2 = right_cell_2.paragraphs[0]
-        text_para_2.text = "AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es"
-        text_para_2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        for run in text_para_2.runs:
+        # Contacto (nuevo párrafo, alineado izquierda)
+        footer_contact = footer.add_paragraph()
+        footer_contact.text = "AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es"
+        footer_contact.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        for run in footer_contact.runs:
             run.font.name = 'Century Gothic'
             run.font.size = Pt(8)
             run.font.color.rgb = RGBColor(102, 102, 102)
-
-        for row in footer_table.rows:
-            for cell in row.cells:
-                tc = cell._element
-                tcPr = tc.get_or_add_tcPr()
-                tcBorders = OxmlElement('w:tcBorders')
-                for border_name in ['top', 'left', 'bottom', 'right']:
-                    border = OxmlElement(f'w:{border_name}')
-                    border.set(qn('w:val'), 'none')
-                    tcBorders.append(border)
-                tcPr.append(tcBorders)
 
     # CONTENIDO
     if is_text_only:
@@ -337,7 +318,7 @@ with col1:
     st.markdown("### 📤 Subir Documento")
     uploaded_file = st.file_uploader("DOCX o TXT", type=['docx', 'txt'])
 with col2:
-    st.markdown('<div class="info-box"><h4>✅ Características</h4><p>✓ Vista previa en tiempo real</p><p>✓ Título y dirección verdes</p><p>✓ Logo alineado en pie</p><p>✓ Descarga en Word</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="info-box"><h4>✅ Características</h4><p>✓ Vista previa en tiempo real</p><p>✓ Título y dirección verdes</p><p>✓ Logo en pie de página</p><p>✓ Descarga en Word</p></div>', unsafe_allow_html=True)
 
 if uploaded_file:
     try:
