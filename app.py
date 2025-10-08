@@ -3,7 +3,6 @@ from docx import Document
 from docx.shared import Pt,Cm,RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.shared import OxmlElement,qn
-from docx.oxml import parse_xml
 import io,re,base64
 from io import BytesIO
 
@@ -13,7 +12,7 @@ LOGO_BASE64="/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAAB
 
 st.markdown("""<style>.stApp{background:linear-gradient(to top left,#1a5c4d 0%,#2d8b73 20%,#fff 100%)}.main-header{background:rgba(255,255,255,0.95);padding:2rem;border-radius:15px;text-align:center;margin-bottom:2rem}.main-header h1{color:#1a5c4d}.stButton>button{background:linear-gradient(135deg,#1a5c4d 0%,#2d8b73 100%);color:white;font-weight:600;border-radius:10px;padding:0.75rem 2rem}</style>""",unsafe_allow_html=True)
 
-st.markdown(f'<div class="main-header"><img src="data:image/jpeg;base64,{LOGO_BASE64}" width="70"><h1>AGOIN</h1><p style="color:#2d8b73">Logo inline + TextBox derecha</p></div>',unsafe_allow_html=True)
+st.markdown(f'<div class="main-header"><img src="data:image/jpeg;base64,{LOGO_BASE64}" width="70"><h1>AGOIN</h1><p style="color:#2d8b73">Tabla invisible</p></div>',unsafe_allow_html=True)
 
 def add_green_header_paragraph(p,t,b=True):
     r=p.add_run(t)
@@ -76,12 +75,30 @@ def is_title_level_2(t,s):
 def is_list_item(t):
     return re.match(r'^[•\-–—]\s',t)or re.match(r'^[a-z]\)|[ivxIVX]+\)|\d+\)',t)
 
-def create_footer_logo_textbox(section):
+def set_cell_border(cell,**kwargs):
+    tc=cell._tc
+    tcPr=tc.get_or_add_tcPr()
+    tcBorders=OxmlElement('w:tcBorders')
+    for edge in('top','left','bottom','right'):
+        edge_data=kwargs.get(edge)
+        if edge_data:
+            tag=OxmlElement(f'w:{edge}')
+            for k,v in edge_data.items():
+                tag.set(qn(f'w:{k}'),str(v))
+            tcBorders.append(tag)
+    tcPr.append(tcBorders)
+
+def create_footer_table(section):
     footer=section.footer
     footer.is_linked_to_previous=False
     for p in footer.paragraphs:
         p.clear()
-    p_logo=footer.paragraphs[0]
+    table=footer.add_table(rows=1,cols=2)
+    table.alignment=WD_ALIGN_PARAGRAPH.LEFT
+    cell_logo=table.rows[0].cells[0]
+    cell_logo.width=Cm(2)
+    cell_logo.vertical_alignment=1
+    p_logo=cell_logo.paragraphs[0]
     p_logo.alignment=WD_ALIGN_PARAGRAPH.LEFT
     r_logo=p_logo.add_run()
     try:
@@ -90,12 +107,26 @@ def create_footer_logo_textbox(section):
         r_logo.add_picture(logo_stream,width=Cm(1.5))
     except:
         pass
-    textbox_xml='<w:r xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w10="urn:schemas-microsoft-com:office:word"><w:pict><v:shapetype id="_x0000_t202" coordsize="21600,21600" o:spt="202" path="m,l,21600r21600,l21600,xe"><v:stroke joinstyle="miter"/><v:path gradientshapeok="t" o:connecttype="rect"/></v:shapetype><v:shape id="TextBox1" type="#_x0000_t202" style="position:absolute;margin-left:0;margin-top:0;width:320pt;height:30pt;z-index:251658240;mso-position-horizontal:right;mso-position-horizontal-relative:margin;mso-position-vertical:center;mso-position-vertical-relative:line" filled="f" stroked="f"><v:textbox style="mso-fit-shape-to-text:t"><w:txbxContent><w:p><w:pPr><w:jc w:val="right"/><w:spacing w:before="0" w:after="0"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:b/><w:sz w:val="18"/></w:rPr><w:t>ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P.</w:t></w:r></w:p><w:p><w:pPr><w:jc w:val="right"/><w:spacing w:before="2" w:after="0"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="14"/><w:color w:val="666666"/></w:rPr><w:t>AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es</w:t></w:r></w:p></w:txbxContent></v:textbox></v:shape></w:pict></w:r>'
-    try:
-        textbox_element=parse_xml(textbox_xml)
-        p_logo._element.append(textbox_element)
-    except:
-        pass
+    cell_text=table.rows[0].cells[1]
+    cell_text.vertical_alignment=1
+    p_emp=cell_text.paragraphs[0]
+    p_emp.alignment=WD_ALIGN_PARAGRAPH.RIGHT
+    p_emp.paragraph_format.space_before=Pt(0)
+    p_emp.paragraph_format.space_after=Pt(0)
+    r_emp=p_emp.add_run("ARQUITECTURA Y GESTIÓN DE OPERACIONES INMOBILIARIAS, S.L.P.")
+    r_emp.font.name='Century Gothic'
+    r_emp.font.size=Pt(9)
+    r_emp.font.bold=True
+    r_emp.font.color.rgb=RGBColor(0,0,0)
+    p_con=cell_text.add_paragraph()
+    p_con.alignment=WD_ALIGN_PARAGRAPH.RIGHT
+    p_con.paragraph_format.space_before=Pt(1)
+    r_con=p_con.add_run("AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es")
+    r_con.font.name='Century Gothic'
+    r_con.font.size=Pt(7)
+    r_con.font.color.rgb=RGBColor(102,102,102)
+    for cell in table.rows[0].cells:
+        set_cell_border(cell,top={'val':'none'},left={'val':'none'},bottom={'val':'none'},right={'val':'none'})
 
 def apply_agoin_format_final(input_doc,project_title,project_location,is_text_only=False):
     output_doc=Document()
@@ -113,7 +144,7 @@ def apply_agoin_format_final(input_doc,project_title,project_location,is_text_on
         header_location=header.add_paragraph()
         add_green_header_paragraph(header_location,project_location if project_location else"[DIRECCIÓN]",False)
         header_location.paragraph_format.space_before=Pt(1)
-        create_footer_logo_textbox(section)
+        create_footer_table(section)
     if is_text_only:
         for line in input_doc.split('\n'):
             line=line.strip()
@@ -247,4 +278,4 @@ else:
     st.info("👆 Sube archivo o pega texto")
 
 st.markdown("---")
-st.markdown('<p style="text-align:center;color:#1a5c4d;font-weight:600">AGOIN v16 FINAL • Logo inline + TextBox flotante derecha</p>',unsafe_allow_html=True)
+st.markdown('<p style="text-align:center;color:#1a5c4d;font-weight:600">AGOIN v17 FINAL • Tabla invisible</p>',unsafe_allow_html=True)
