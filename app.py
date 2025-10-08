@@ -245,11 +245,11 @@ if doc_content:
         if st.button("✨ Generar",use_container_width=True,type="primary"):
             with st.spinner("🔄 Formateando..."):
                 try:
-                    output_doc=apply_agoin_format_final(doc_content,project_title,project_location,is_text_only)
+                    output_doc=apply_agoin_format_final(doc_content,project_title,project_location,is_text_mode)
                     buffer=io.BytesIO()
                     output_doc.save(buffer)
                     buffer.seek(0)
-                    st.success("✅ Listo")
+                    st.success("✅ Documento listo")
                     st.download_button("📄 Descargar",data=buffer,file_name=f"AGOIN_{source_name}.docx",mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",use_container_width=True)
                 except Exception as e:
                     st.error(f"❌ {str(e)}")
@@ -259,4 +259,4 @@ else:
     st.info("👆 Sube archivo o pega texto")
 
 st.markdown("---")
-st.markdown('<p style="text-align:center;color:#1a5c4d;font-weight:600">AGOIN v14 • Logo izq bajado • Texto dcha</p>',unsafe_allow_html=True)
+st.markdown('<p style="text-align:center;color:#1a5c4d;font-weight:600">AGOIN v14.1 Final • Logo izq bajado • Texto dcha</p>',unsafe_allow_html=True)
