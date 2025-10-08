@@ -16,7 +16,7 @@ LOGO_BASE64="/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAAB
 
 st.markdown("""<style>.stApp{background:linear-gradient(to top left,#1a5c4d 0%,#2d8b73 20%,#fff 100%)}.main-header{background:rgba(255,255,255,0.95);padding:2rem;border-radius:15px;text-align:center;margin-bottom:2rem}.main-header h1{color:#1a5c4d}.stButton>button{background:linear-gradient(135deg,#1a5c4d 0%,#2d8b73 100%);color:white;font-weight:600;border-radius:10px;padding:0.75rem 2rem}</style>""",unsafe_allow_html=True)
 
-st.markdown(f'<div class="main-header"><img src="data:image/jpeg;base64,{LOGO_BASE64}" width="70"><h1>AGOIN</h1><p style="color:#2d8b73">v19</p></div>',unsafe_allow_html=True)
+st.markdown(f'<div class="main-header"><img src="data:image/jpeg;base64,{LOGO_BASE64}" width="70"><h1>AGOIN</h1><p style="color:#2d8b73">v20</p></div>',unsafe_allow_html=True)
 
 def add_green_header_paragraph(p,t,b=True):
     r=p.add_run(t)
@@ -42,8 +42,7 @@ def extract_project_info_from_text(t):
                 break
     tj=' '.join(l)
     lp=re.search(r'(?:CALLE|AVENIDA|AVDA|C/|AVENIDA DE)[^\n]{0,150}',tj,re.IGNORECASE)
-    if lp:
-        i['location']=lp.group(0).strip()
+    if lp:i['location']=lp.group(0).strip()
     return i
 
 def extract_project_info(d):
@@ -57,15 +56,13 @@ def extract_project_info(d):
                     break
         txt=' '.join([p.text for p in d.paragraphs[:10]])
         lp=re.search(r'(?:CALLE|AVENIDA|AVDA|C/|AVENIDA DE)[^\n]{0,150}',txt,re.IGNORECASE)
-        if lp:
-            i['location']=lp.group(0).strip()
+        if lp:i['location']=lp.group(0).strip()
     return i
 
 def is_title_level_1(t,s):
     if s=='Heading 1':return True
     if t.isupper()and len(t)<100 and not re.match(r'^\d+[.-]',t):return True
-    k=['ÍNDICE','CONCLUSIÓN','INTRODUCCIÓN','RESUMEN']
-    return any(kw in t.upper()for kw in k)and len(t)<60
+    return any(k in t.upper()for k in['ÍNDICE','CONCLUSIÓN','INTRODUCCIÓN','RESUMEN'])and len(t)<60
 
 def is_title_level_2(t,s):
     if s in['Heading 2','Heading 3']:return True
@@ -100,27 +97,25 @@ def create_footer_table(section):
     tbl.append(tr)
     tc1=CT_Tc()
     tc2=CT_Tc()
-    p1=CT_P()
-    p2=CT_P()
-    tc1.append(p1)
-    tc2.append(p2)
     tr.append(tc1)
     tr.append(tc2)
     cell_logo=_Cell(tc1,table)
     cell_text=_Cell(tc2,table)
-    cell_logo.width=Cm(2)
-    cell_logo.vertical_alignment=1
-    p_logo=cell_logo.paragraphs[0]
+    p1_xml=CT_P()
+    tc1.append(p1_xml)
+    p_logo=Paragraph(p1_xml,cell_logo)
     p_logo.alignment=WD_ALIGN_PARAGRAPH.LEFT
     r_logo=p_logo.add_run()
     try:
         logo_bytes=base64.b64decode(LOGO_BASE64)
         logo_stream=BytesIO(logo_bytes)
         r_logo.add_picture(logo_stream,width=Cm(1.5))
-    except:
-        pass
-    cell_text.vertical_alignment=1
-    p_emp=cell_text.paragraphs[0]
+    except:pass
+    cell_logo.width=Cm(2)
+    cell_logo.vertical_alignment=1
+    p_emp_xml=CT_P()
+    tc2.append(p_emp_xml)
+    p_emp=Paragraph(p_emp_xml,cell_text)
     p_emp.alignment=WD_ALIGN_PARAGRAPH.RIGHT
     p_emp.paragraph_format.space_before=Pt(0)
     p_emp.paragraph_format.space_after=Pt(0)
@@ -138,6 +133,7 @@ def create_footer_table(section):
     r_con.font.name='Century Gothic'
     r_con.font.size=Pt(7)
     r_con.font.color.rgb=RGBColor(102,102,102)
+    cell_text.vertical_alignment=1
     for cell in[cell_logo,cell_text]:
         set_cell_border(cell,top={'val':'none'},left={'val':'none'},bottom={'val':'none'},right={'val':'none'})
 
@@ -150,8 +146,7 @@ def apply_agoin_format_final(input_doc,project_title,project_location,is_text_on
         section.right_margin=Cm(3.0)
         header=section.header
         header.is_linked_to_previous=False
-        for p in header.paragraphs:
-            p.clear()
+        for p in header.paragraphs:p.clear()
         header_title=header.paragraphs[0]
         add_green_header_paragraph(header_title,project_title if project_title else"[TÍTULO]",True)
         header_location=header.add_paragraph()
@@ -286,4 +281,4 @@ else:
     st.info("👆 Sube archivo o pega texto")
 
 st.markdown("---")
-st.markdown('<p style="text-align:center;color:#1a5c4d;font-weight:600">AGOIN v19 FINAL</p>',unsafe_allow_html=True)
+st.markdown('<p style="text-align:center;color:#1a5c4d;font-weight:600">AGOIN v20 FINAL</p>',unsafe_allow_html=True)
