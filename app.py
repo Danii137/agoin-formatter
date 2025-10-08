@@ -4,7 +4,9 @@ from docx.shared import Pt,Cm,RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.shared import OxmlElement,qn
 from docx.oxml.table import CT_Tbl,CT_Row,CT_Tc
+from docx.oxml.text.paragraph import CT_P
 from docx.table import Table,_Cell
+from docx.text.paragraph import Paragraph
 import io,re,base64
 from io import BytesIO
 
@@ -14,7 +16,7 @@ LOGO_BASE64="/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAAB
 
 st.markdown("""<style>.stApp{background:linear-gradient(to top left,#1a5c4d 0%,#2d8b73 20%,#fff 100%)}.main-header{background:rgba(255,255,255,0.95);padding:2rem;border-radius:15px;text-align:center;margin-bottom:2rem}.main-header h1{color:#1a5c4d}.stButton>button{background:linear-gradient(135deg,#1a5c4d 0%,#2d8b73 100%);color:white;font-weight:600;border-radius:10px;padding:0.75rem 2rem}</style>""",unsafe_allow_html=True)
 
-st.markdown(f'<div class="main-header"><img src="data:image/jpeg;base64,{LOGO_BASE64}" width="70"><h1>AGOIN</h1><p style="color:#2d8b73">v18 Compatible</p></div>',unsafe_allow_html=True)
+st.markdown(f'<div class="main-header"><img src="data:image/jpeg;base64,{LOGO_BASE64}" width="70"><h1>AGOIN</h1><p style="color:#2d8b73">v19</p></div>',unsafe_allow_html=True)
 
 def add_green_header_paragraph(p,t,b=True):
     r=p.add_run(t)
@@ -60,18 +62,14 @@ def extract_project_info(d):
     return i
 
 def is_title_level_1(t,s):
-    if s=='Heading 1':
-        return True
-    if t.isupper()and len(t)<100 and not re.match(r'^\d+[.-]',t):
-        return True
+    if s=='Heading 1':return True
+    if t.isupper()and len(t)<100 and not re.match(r'^\d+[.-]',t):return True
     k=['ÍNDICE','CONCLUSIÓN','INTRODUCCIÓN','RESUMEN']
     return any(kw in t.upper()for kw in k)and len(t)<60
 
 def is_title_level_2(t,s):
-    if s in['Heading 2','Heading 3']:
-        return True
-    if re.match(r'^\d+(\.\d+)*[.-]\s',t):
-        return True
+    if s in['Heading 2','Heading 3']:return True
+    if re.match(r'^\d+(\.\d+)*[.-]\s',t):return True
     return len(t)<80 and t.endswith(':')and not t.isupper()
 
 def is_list_item(t):
@@ -102,6 +100,10 @@ def create_footer_table(section):
     tbl.append(tr)
     tc1=CT_Tc()
     tc2=CT_Tc()
+    p1=CT_P()
+    p2=CT_P()
+    tc1.append(p1)
+    tc2.append(p2)
     tr.append(tc1)
     tr.append(tc2)
     cell_logo=_Cell(tc1,table)
@@ -127,7 +129,9 @@ def create_footer_table(section):
     r_emp.font.size=Pt(9)
     r_emp.font.bold=True
     r_emp.font.color.rgb=RGBColor(0,0,0)
-    p_con=cell_text.add_paragraph()
+    p_con_xml=CT_P()
+    tc2.append(p_con_xml)
+    p_con=Paragraph(p_con_xml,cell_text)
     p_con.alignment=WD_ALIGN_PARAGRAPH.RIGHT
     p_con.paragraph_format.space_before=Pt(1)
     r_con=p_con.add_run("AVDA. DE IRLANDA 21, 4º D. 45005 TOLEDO | TLFN. 925 299 300 | www.agoin.es | info@agoin.es")
@@ -157,8 +161,7 @@ def apply_agoin_format_final(input_doc,project_title,project_location,is_text_on
     if is_text_only:
         for line in input_doc.split('\n'):
             line=line.strip()
-            if not line:
-                continue
+            if not line:continue
             new_para=output_doc.add_paragraph()
             if is_title_level_1(line,''):
                 add_green_header_paragraph(new_para,line,True)
@@ -185,8 +188,7 @@ def apply_agoin_format_final(input_doc,project_title,project_location,is_text_on
                 new_para.paragraph_format.line_spacing=1.15
     else:
         for para in input_doc.paragraphs:
-            if not para.text.strip():
-                continue
+            if not para.text.strip():continue
             new_para=output_doc.add_paragraph()
             texto=para.text.strip()
             style_name=para.style.name
@@ -213,12 +215,9 @@ def apply_agoin_format_final(input_doc,project_title,project_location,is_text_on
                     new_run.font.name='Century Gothic'
                     new_run.font.size=Pt(10)
                     new_run.font.color.rgb=RGBColor(0,0,0)
-                    if run.bold:
-                        new_run.bold=True
-                    if run.italic:
-                        new_run.italic=True
-                    if run.underline:
-                        new_run.underline=True
+                    if run.bold:new_run.bold=True
+                    if run.italic:new_run.italic=True
+                    if run.underline:new_run.underline=True
                 new_para.alignment=WD_ALIGN_PARAGRAPH.JUSTIFY
                 new_para.paragraph_format.line_spacing=1.15
         for table in input_doc.tables:
@@ -287,4 +286,4 @@ else:
     st.info("👆 Sube archivo o pega texto")
 
 st.markdown("---")
-st.markdown('<p style="text-align:center;color:#1a5c4d;font-weight:600">AGOIN v18 FINAL • Compatible</p>',unsafe_allow_html=True)
+st.markdown('<p style="text-align:center;color:#1a5c4d;font-weight:600">AGOIN v19 FINAL</p>',unsafe_allow_html=True)
