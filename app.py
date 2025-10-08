@@ -3,6 +3,8 @@ from docx import Document
 from docx.shared import Pt,Cm,RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.shared import OxmlElement,qn
+from docx.oxml.table import CT_Tbl,CT_Row,CT_Tc
+from docx.table import Table,_Cell
 import io,re,base64
 from io import BytesIO
 
@@ -12,7 +14,7 @@ LOGO_BASE64="/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAAB
 
 st.markdown("""<style>.stApp{background:linear-gradient(to top left,#1a5c4d 0%,#2d8b73 20%,#fff 100%)}.main-header{background:rgba(255,255,255,0.95);padding:2rem;border-radius:15px;text-align:center;margin-bottom:2rem}.main-header h1{color:#1a5c4d}.stButton>button{background:linear-gradient(135deg,#1a5c4d 0%,#2d8b73 100%);color:white;font-weight:600;border-radius:10px;padding:0.75rem 2rem}</style>""",unsafe_allow_html=True)
 
-st.markdown(f'<div class="main-header"><img src="data:image/jpeg;base64,{LOGO_BASE64}" width="70"><h1>AGOIN</h1><p style="color:#2d8b73">Tabla invisible</p></div>',unsafe_allow_html=True)
+st.markdown(f'<div class="main-header"><img src="data:image/jpeg;base64,{LOGO_BASE64}" width="70"><h1>AGOIN</h1><p style="color:#2d8b73">v18 Compatible</p></div>',unsafe_allow_html=True)
 
 def add_green_header_paragraph(p,t,b=True):
     r=p.add_run(t)
@@ -93,9 +95,17 @@ def create_footer_table(section):
     footer.is_linked_to_previous=False
     for p in footer.paragraphs:
         p.clear()
-    table=footer.add_table(rows=1,cols=2)
-    table.alignment=WD_ALIGN_PARAGRAPH.LEFT
-    cell_logo=table.rows[0].cells[0]
+    tbl=CT_Tbl()
+    footer._element.append(tbl)
+    table=Table(tbl,footer)
+    tr=CT_Row()
+    tbl.append(tr)
+    tc1=CT_Tc()
+    tc2=CT_Tc()
+    tr.append(tc1)
+    tr.append(tc2)
+    cell_logo=_Cell(tc1,table)
+    cell_text=_Cell(tc2,table)
     cell_logo.width=Cm(2)
     cell_logo.vertical_alignment=1
     p_logo=cell_logo.paragraphs[0]
@@ -107,7 +117,6 @@ def create_footer_table(section):
         r_logo.add_picture(logo_stream,width=Cm(1.5))
     except:
         pass
-    cell_text=table.rows[0].cells[1]
     cell_text.vertical_alignment=1
     p_emp=cell_text.paragraphs[0]
     p_emp.alignment=WD_ALIGN_PARAGRAPH.RIGHT
@@ -125,7 +134,7 @@ def create_footer_table(section):
     r_con.font.name='Century Gothic'
     r_con.font.size=Pt(7)
     r_con.font.color.rgb=RGBColor(102,102,102)
-    for cell in table.rows[0].cells:
+    for cell in[cell_logo,cell_text]:
         set_cell_border(cell,top={'val':'none'},left={'val':'none'},bottom={'val':'none'},right={'val':'none'})
 
 def apply_agoin_format_final(input_doc,project_title,project_location,is_text_only=False):
@@ -278,4 +287,4 @@ else:
     st.info("👆 Sube archivo o pega texto")
 
 st.markdown("---")
-st.markdown('<p style="text-align:center;color:#1a5c4d;font-weight:600">AGOIN v17 FINAL • Tabla invisible</p>',unsafe_allow_html=True)
+st.markdown('<p style="text-align:center;color:#1a5c4d;font-weight:600">AGOIN v18 FINAL • Compatible</p>',unsafe_allow_html=True)
